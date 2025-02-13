@@ -49,26 +49,26 @@ void setup()
   pinMode(GFX_BL, OUTPUT);
   digitalWrite(GFX_BL, HIGH);
 #endif
-
+  gfx->setTextColor(WHITE);
+  gfx->setCursor(180, 50);
+  gfx->println(F("START "));
   delay(500); // .5 seconds
 }
 
-void Writeat(int h,int v, char* text){
-    gfx->setCursor(h, v);
+void Writeat(int h,int v, const char* text){
+  gfx->setCursor(h, v);
   gfx->println(text);
 }
 
 void loop()
 {
 gfx->setTextSize(4);
-  gfx->setTextColor(WHITE);
-  gfx->setCursor(180, 50);
-  gfx->println(F("START "));
 
-  gfx->setTextColor(RED);Writeat(180,50,"WHITE"); gfx->fillScreen(WHITE);delay(1000);
-   gfx->setTextColor(WHITE);Writeat(180,50,"RED");gfx->fillScreen(RED);delay(1000);
-  gfx->setTextColor(RED);Writeat(180,50,"GREEN");gfx->fillScreen(GREEN);delay(1000);
-  gfx->setTextColor(BLACK);Writeat(180,50,"BLUE");gfx->fillScreen(BLUE);delay(1000);
+
+   gfx->fillScreen(WHITE);gfx->setTextColor(RED);Writeat(180,50,"WHITE");delay(1000);
+   gfx->fillScreen(RED);gfx->setTextColor(WHITE);Writeat(180,50,"RED");delay(1000);
+  gfx->fillScreen(GREEN);gfx->setTextColor(RED);Writeat(180,50,"GREEN");delay(1000);
+  gfx->fillScreen(BLUE);gfx->setTextColor(BLACK);Writeat(180,50,"BLUE");delay(1000);
 
   delay(1000); // 1 second
 }
