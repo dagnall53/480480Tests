@@ -32,9 +32,6 @@ Arduino_ST7701_RGBPanel *gfx =  new Arduino_ST7701_RGBPanel(
 //** OTHER PINS
 
 #define TFT_BL GFX_BL
-#define I2C_SDA_PIN 19     //19
-#define I2C_SCL_PIN 45     //45
-
 
 #define SD_SCK  48                //48
 #define SD_MISO 41                //41
@@ -48,6 +45,10 @@ Arduino_ST7701_RGBPanel *gfx =  new Arduino_ST7701_RGBPanel(
 
 #define TOUCH_INT -1          //-1
 #define TOUCH_RST 38          // -1 (just uses power off?)
+#define TOUCH_SDA  19
+#define TOUCH_SCL  45
+#define TOUCH_WIDTH  480
+#define TOUCH_HEIGHT 480
 
 // workss with (https://github.com/moononournation/Arduino_GFX) GFX 1.3.1 where:
 

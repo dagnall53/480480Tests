@@ -23,22 +23,18 @@ From scratch build!
 
 int touch_last_x = 0, touch_last_y = 0;
 
-TAMC_GT911 ts = TAMC_GT911(I2C_SDA_PIN, I2C_SCL_PIN, TOUCH_INT, TOUCH_RST, max(TOUCH_MAP_X1, TOUCH_MAP_X2), max(TOUCH_MAP_Y1, TOUCH_MAP_Y2));
+TAMC_GT911 ts = TAMC_GT911(TOUCH_SDA, TOUCH_SCL, TOUCH_INT, TOUCH_RST, TOUCH_WIDTH, TOUCH_HEIGHT);
 
 
 
 
-
-
-void setup()
-{
+void setup() {
   Serial.begin(115200);
-  // Serial.setDebugOutput(true);
-  // while(!Serial);
-  Serial.println("PROGMEM Image Viewer");
+  ts.begin();
+  ts.setRotation(ROTATION_NORMAL);
 
-
-#ifdef GFX_BL
+  Serial.println("Test of 4848 ST7701 drivers ");
+ #ifdef GFX_BL
   pinMode(GFX_BL, OUTPUT);
   digitalWrite(GFX_BL, HIGH);
 #endif
@@ -63,8 +59,7 @@ void Writeat(int h,int v, const char* text){
   gfx->println(text);
 }
 
-void DisplayCheck(bool invertcheck)
-{
+void DisplayCheck(bool invertcheck) {
   static unsigned long timedInterval;
   static int Color;
   static bool ips;
@@ -73,27 +68,74 @@ void DisplayCheck(bool invertcheck)
     Color = Color+1; 
     if (Color > 5){Color=0; ips=!ips;
      if (invertcheck) {gfx->invertDisplay(ips); gfx->setTextSize(2);
-     gfx->fillRect(0, 0, 480, 20,BLACK);gfx->setTextColor(WHITE);Writeat(0,0, "INVERTING DISPLAY Colours?");} }
+     gfx->fillRect(0, 0, 480, 40,BLACK);gfx->setTextColor(WHITE);Writeat(0,0, "INVERTING DISPLAY Colours?");} }
      gfx->setTextSize(4);
     switch (Color){
       //gfx->fillRect(0, 00, 480, 20,BLACK);gfx->setTextColor(WHITE);Writeat(0,0, "WHITE");
-      case 0: gfx->fillRect(0, 20, 480, 460,WHITE);gfx->setTextColor(BLACK);Writeat(180,50,"WHITE");
+      case 0: gfx->fillRect(0, 40, 480, 440,WHITE);gfx->setTextColor(BLACK);Writeat(180,50,"WHITE");
       break;
-      case 1: gfx->fillRect(0, 20, 480, 460,BLACK);;gfx->setTextColor(WHITE);Writeat(180,50,"BLACK");
+      case 1: gfx->fillRect(0, 40, 480, 440,BLACK);;gfx->setTextColor(WHITE);Writeat(180,50,"BLACK");
       break;
-      case 2: gfx->fillRect(0, 20, 480, 460,RED);;gfx->setTextColor(BLACK);Writeat(180,50,"RED");
+      case 2: gfx->fillRect(0, 40, 480, 440,RED);;gfx->setTextColor(BLACK);Writeat(180,50,"RED");
       break;
-      case 3: gfx->fillRect(0, 20, 480, 460,GREEN);;gfx->setTextColor(BLACK);Writeat(180,50,"GREEN");
+      case 3: gfx->fillRect(0, 40, 480, 440,GREEN);;gfx->setTextColor(BLACK);Writeat(180,50,"GREEN");
       break;
-      case 4: gfx->fillRect(0, 20, 480, 460,BLUE);;gfx->setTextColor(BLACK);Writeat(180,50,"BLUE");
+      case 4: gfx->fillRect(0, 40, 480, 440,BLUE);;gfx->setTextColor(BLACK);Writeat(180,50,"BLUE");
       break;
     }
   }
 }
 
+bool actionrequired;
 
-void loop()
-{ DisplayCheck(false);
+void loop() {
+  DisplayCheck(false);
+  actionrequired=touch_check(true);
+  // ts.read();
+  // if (ts.isTouched){
+  //   //Serial.printf("Touches seen  [%i] (0)is X:%i Y:%i \n",ts.touches,ts.points[0].x,ts.points[0].y);
+  //   for (int i=0; i<ts.touches; i++){
+  //     Serial.printf("TOUCH  [%i] X:%i Y:%i size:%i \n",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
+  //   }
+  // }
 
-  
 }
+
+
+
+
+ void TouchCheck(bool debug) {
+  ts.read();
+  if (ts.isTouched){
+    for (int i=0; i<ts.touches; i++){
+      if (debug) {
+      Serial.printf("Touch [%i] X:%i Y:%i size:%i \n",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
+      gfx->setTextSize(1); //8 is text height 1
+      gfx->fillRect(0, i*8, 480,(i+1)*8,BLACK);
+      gfx->setTextColor(WHITE);
+      gfx->setCursor(0, i*8);
+      gfx->printf("Touch [%i] X:%i Y:%i size:%i ",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
+      }
+    }
+  }
+}
+
+bool touch_check(bool debug) {
+    ts.read();
+  if (ts.isTouched){
+    for (int i=0; i<ts.touches; i++){
+      if (debug) {
+      Serial.printf("Touch [%i] X:%i Y:%i size:%i \n",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
+      gfx->setTextSize(1); //8 is text height 1
+      gfx->fillRect(0, i*8, 480,(i+1)*8,BLACK);
+      gfx->setTextColor(WHITE);
+      gfx->setCursor(0, i*8);
+      gfx->printf("Touch [%i] X:%i Y:%i size:%i ",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
+      }
+    }
+    return true;
+  } else {
+    return false;
+  }
+}
+
