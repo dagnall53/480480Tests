@@ -4,7 +4,7 @@ Pins and defines for GFX - various versions!
  
 #ifndef _ESPGFDEF_H_
 #define _ESPGFDEF_H_
-//****  Later  GFX VERSIONS HAVE DIFFERENT *BUS config 
+//****  Later  GFX VERSIONS HAVE Refactored  *BUS config and miss the ips (colour inversion??) setup  
 #define GFX_BL 38
 Arduino_DataBus *bus = new Arduino_SWSPI(
   GFX_NOT_DEFINED /* DC */,

@@ -14,6 +14,21 @@ From scratch build!
 /*******************************************************************************
  * End of Arduino_GFX setting
  ******************************************************************************/
+ #include <TAMC_GT911.h>
+#define TOUCH_ROTATION ROTATION_NORMAL
+#define TOUCH_MAP_X1 480
+#define TOUCH_MAP_X2 0
+#define TOUCH_MAP_Y1 480
+#define TOUCH_MAP_Y2 0
+
+int touch_last_x = 0, touch_last_y = 0;
+
+TAMC_GT911 ts = TAMC_GT911(I2C_SDA_PIN, I2C_SCL_PIN, TOUCH_INT, TOUCH_RST, max(TOUCH_MAP_X1, TOUCH_MAP_X2), max(TOUCH_MAP_Y1, TOUCH_MAP_Y2));
+
+
+
+
+
 
 void setup()
 {
@@ -30,7 +45,7 @@ void setup()
   // Init Display
   gfx->begin();
   //if GFX> 1.3.1 
-  gfx->invertDisplay(false);
+  //gfx->invertDisplay(false);
   gfx->fillScreen(BLACK);
 
 #ifdef GFX_BL
@@ -48,7 +63,7 @@ void Writeat(int h,int v, const char* text){
   gfx->println(text);
 }
 
-void DisplayCheck()
+void DisplayCheck(bool invertcheck)
 {
   static unsigned long timedInterval;
   static int Color;
@@ -57,8 +72,8 @@ void DisplayCheck()
     timedInterval = millis()+1000;
     Color = Color+1; 
     if (Color > 5){Color=0; ips=!ips;
-     gfx->invertDisplay(ips); gfx->setTextSize(2);
-     gfx->fillRect(0, 0, 480, 20,BLACK);gfx->setTextColor(WHITE);Writeat(0,0, "INVERTING DISPLAY Colours?"); }
+     if (invertcheck) {gfx->invertDisplay(ips); gfx->setTextSize(2);
+     gfx->fillRect(0, 0, 480, 20,BLACK);gfx->setTextColor(WHITE);Writeat(0,0, "INVERTING DISPLAY Colours?");} }
      gfx->setTextSize(4);
     switch (Color){
       //gfx->fillRect(0, 00, 480, 20,BLACK);gfx->setTextColor(WHITE);Writeat(0,0, "WHITE");
@@ -78,7 +93,7 @@ void DisplayCheck()
 
 
 void loop()
-{ DisplayCheck();
+{ DisplayCheck(false);
 
   
 }
