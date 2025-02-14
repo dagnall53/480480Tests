@@ -24,6 +24,24 @@ From scratch build!
 int touch_last_x = 0, touch_last_y = 0;
 
 TAMC_GT911 ts = TAMC_GT911(TOUCH_SDA, TOUCH_SCL, TOUCH_INT, TOUCH_RST, TOUCH_WIDTH, TOUCH_HEIGHT);
+#include <EEPROM.h>
+
+//**   structures for my variables (for saving) 
+struct MySettings {
+  int EpromKEY;  // to allow check for clean EEprom and no data stored
+  int UDP_PORT;
+  int Mode;
+  bool UDP_ON;
+  bool Serial_on;
+  bool ESP_NOW_ON;
+  uint8_t ListTextSize;  // fontsize for listed text (2 is readable, 1 gives more lines)// all off
+  char ssid[16];
+  char password[16];
+};
+
+MySettings Default_Settings = { 127, 2002, 1, false, true, true, 2, "N2K0183-proto", "12345678" };
+MySettings Saved_Settings;
+MySettings Current_Settings;
 
 
 
@@ -31,7 +49,7 @@ TAMC_GT911 ts = TAMC_GT911(TOUCH_SDA, TOUCH_SCL, TOUCH_INT, TOUCH_RST, TOUCH_WID
 void setup() {
   Serial.begin(115200);
   ts.begin();
-  ts.setRotation(ROTATION_NORMAL);
+  ts.setRotation(ROTATION_INVERTED);
 
   Serial.println("Test of 4848 ST7701 drivers ");
  #ifdef GFX_BL
@@ -40,7 +58,7 @@ void setup() {
 #endif
   // Init Display
   gfx->begin();
-  //if GFX> 1.3.1 
+  //if GFX> 1.3.1 try and do this as the invert colours write 21h or 20h to 0Dh has been lost from the structure!
   //gfx->invertDisplay(false);
   gfx->fillScreen(BLACK);
 
@@ -49,9 +67,25 @@ void setup() {
   digitalWrite(GFX_BL, HIGH);
 #endif
   gfx->setTextColor(WHITE);
+  gfx->setTextSize(4); 
   gfx->setCursor(180, 50);
   gfx->println(F("START "));
   delay(500); // .5 seconds
+  EEPROM_READ();  // setup and read saved variables into Saved_Settings
+  //dataline(Saved_Settings, "Saved");
+  //dataline(Default_Settings, "Default");
+  Current_Settings = Saved_Settings;
+  if (Current_Settings.EpromKEY != 127) {
+    Current_Settings = Default_Settings;
+    EEPROM_WRITE();
+  }
+  dataline(Current_Settings, "Current");
+
+
+
+
+
+
 }
 
 void Writeat(int h,int v, const char* text){
@@ -91,19 +125,13 @@ bool actionrequired;
 void loop() {
   DisplayCheck(false);
   actionrequired=touch_check(true);
-  // ts.read();
-  // if (ts.isTouched){
-  //   //Serial.printf("Touches seen  [%i] (0)is X:%i Y:%i \n",ts.touches,ts.points[0].x,ts.points[0].y);
-  //   for (int i=0; i<ts.touches; i++){
-  //     Serial.printf("TOUCH  [%i] X:%i Y:%i size:%i \n",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
-  //   }
-  // }
+
 
 }
 
 
 
-
+//*********** Touch stuff ****************
  void TouchCheck(bool debug) {
   ts.read();
   if (ts.isTouched){
@@ -127,9 +155,9 @@ bool touch_check(bool debug) {
       if (debug) {
       Serial.printf("Touch [%i] X:%i Y:%i size:%i \n",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
       gfx->setTextSize(1); //8 is text height 1
-      gfx->fillRect(0, i*8, 480,(i+1)*8,BLACK);
+      gfx->fillRect(0, (i+1)*8, 480,(i+2)*8,BLACK);
       gfx->setTextColor(WHITE);
-      gfx->setCursor(0, i*8);
+      gfx->setCursor(0, (i+1)*8);
       gfx->printf("Touch [%i] X:%i Y:%i size:%i ",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
       }
     }
@@ -137,5 +165,54 @@ bool touch_check(bool debug) {
   } else {
     return false;
   }
+}
+
+//*********** EEPROM functions *********
+void EEPROM_WRITE() {
+  // save my current settings
+  //dataline(Current_Settings, "EEPROM_save");
+  Serial.println("SAVING EEPROM");
+  EEPROM.put(0, Current_Settings);
+  EEPROM.commit();
+  delay(50);
+}
+void EEPROM_READ() {
+  EEPROM.begin(512);
+  Serial.println("READING EEPROM");
+  EEPROM.get(0, Saved_Settings);
+  //dataline(Saved_Settings, "EEPROM_Read");
+}
+void dataline(MySettings A, String Text) {
+  int i =0; // line to start print on for now!
+  //gfx->fillRect(0, TOP_FIXED_AREA, XMAX, YMAX - TOP_FIXED_AREA, TFT_BLACK);
+      gfx->setTextSize(1); //8 is text height 1
+      gfx->fillRect(0, (i+1)*8, 480,(i+2)*8,BLACK);
+      gfx->setTextColor(WHITE);
+      gfx->setCursor(0, i*8);
+  gfx->printf("%d, %d SER<%d>", A.EpromKEY, A.Mode, A.Serial_on);
+  gfx->setTextColor(BLUE);
+  gfx->printf("UDP<%d><%d> ", A.UDP_PORT, A.UDP_ON);
+  gfx->setTextColor(GREEN);
+  gfx->printf("ESP<%d>", A.ESP_NOW_ON);
+  gfx->setTextColor(WHITE);  // reset to initial state
+
+  Serial.printf("%d Dataline display %s: Mode<%d> Ser<%d> UDPPORT<%d> UDP<%d>  ESP<%d> ", A.EpromKEY, Text, A.Mode, A.Serial_on, A.UDP_PORT, A.UDP_ON, A.ESP_NOW_ON);
+  Serial.print("SSID <");
+  Serial.print(A.ssid);
+  Serial.print(">  Password <");
+  Serial.print(A.password);
+  Serial.println("> ");
+}
+boolean CompStruct(MySettings A, MySettings B) {  // does not check ssid and password
+  bool same = false;
+  // have to check each variable individually
+  if (A.EpromKEY == B.EpromKEY) { same = true; }
+  if (A.UDP_PORT == B.UDP_PORT) { same = true; }
+  if (A.UDP_ON == B.UDP_ON) { same = true; }
+  if (A.ESP_NOW_ON == B.ESP_NOW_ON) { same = true; }
+  if (A.Serial_on == B.Serial_on) { same = true; }
+  if (A.Mode == B.Mode) { same = true; }
+  if (A.ListTextSize == B.ListTextSize) { same = true; }
+  return same;
 }
 
