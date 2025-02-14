@@ -1,6 +1,7 @@
 /*******************************************************************************
 
 From scratch build! 
+ for keyboard  trying to use elements of https://github.com/fbiego/esp32-touch-keyboard/tree/main
 
 
 
@@ -25,7 +26,7 @@ int touch_last_x = 0, touch_last_y = 0;
 
 TAMC_GT911 ts = TAMC_GT911(TOUCH_SDA, TOUCH_SCL, TOUCH_INT, TOUCH_RST, TOUCH_WIDTH, TOUCH_HEIGHT);
 #include <EEPROM.h>
-
+#include "fonts.h"
 //**   structures for my variables (for saving) 
 struct MySettings {
   int EpromKEY;  // to allow check for clean EEprom and no data stored
@@ -43,7 +44,16 @@ MySettings Default_Settings = { 127, 2002, 1, false, true, true, 2, "N2K0183-pro
 MySettings Saved_Settings;
 MySettings Current_Settings;
 
+//*********** for keyboard*************
+String top = "qQ1wW2eE3rR4tT5yY6uU7iI8oO9pP0";
+String middle = "aA_sS/dD:fF;gG(hH)jJ$kK&lL@";
+String bottom = "^^ zZ.xX,cC?vV!bB'nN\"mM-";
 
+int caps = 0;
+bool change = false;
+int sz = 3;
+
+String text = "";
 
 
 void setup() {
@@ -81,7 +91,14 @@ void setup() {
   }
   dataline(Current_Settings, "Current");
 
+  //setup keyboard
+    gfx->setTextColor(WHITE, BLACK);
+  gfx->setFont(&FreeMono8pt7b);
 
+  gfx->setCursor(30, 80);
+  gfx->print(text + "_");
+
+  keyboard(caps);
 
 
 
@@ -123,7 +140,7 @@ void DisplayCheck(bool invertcheck) {
 bool actionrequired;
 
 void loop() {
-  DisplayCheck(false);
+  //DisplayCheck(false);
   actionrequired=touch_check(true);
 
 
@@ -214,5 +231,34 @@ boolean CompStruct(MySettings A, MySettings B) {  // does not check ssid and pas
   if (A.Mode == B.Mode) { same = true; }
   if (A.ListTextSize == B.ListTextSize) { same = true; }
   return same;
+}
+
+
+void keyboard(int type) {
+  // draw the keyboard
+  for (int x = 0; x < 10; x++) {
+    int a = (x * 4) + (20 * x) + 2;
+    gfx->drawRoundRect(a, 120, 20, 25, 1, WHITE);
+    gfx->setCursor(a + 5, 120 + 15);
+    gfx->print(top.charAt((x * sz) + type));
+  }
+
+  for (int x = 0; x < 9; x++) {
+    int a = (x * 4) + (20 * x) + 13;
+    gfx->drawRoundRect(a, 150, 20, 25, 1, WHITE);
+    gfx->setCursor(a + 5, 150 + 15);
+    gfx->print(middle.charAt((x * sz) + type));
+  }
+
+  for (int x = 0; x < 8; x++) {
+    int a = (x * 4) + (20 * x) + 25;
+    gfx->drawRoundRect(a, 180, 20, 25, 1, x == 0 ? GREEN : WHITE);
+    gfx->setCursor(a + 5, 180 + 15);
+    gfx->print(bottom.charAt((x * sz) + type));
+  }
+
+  gfx->drawRoundRect(55, 210, 30, 25, 1, BLUE);
+  gfx->drawRoundRect(90, 210, 60, 25, 1, WHITE);
+  gfx->drawRoundRect(155, 210, 30, 25, 1, RED);
 }
 
