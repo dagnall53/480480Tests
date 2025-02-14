@@ -8,7 +8,7 @@ From scratch build!
 // * Start of Arduino_GFX setting
 
 #include <Arduino_GFX_Library.h>
-//select pin definitions for installed GFX version
+//select pin definitions for installed GFX version (test with 1.5.3 and 1.3.1)
 #include "GUITIONESP32-S3-4848S040_GFX_131.h"
 
 /*******************************************************************************
@@ -29,6 +29,8 @@ void setup()
 #endif
   // Init Display
   gfx->begin();
+  //if GFX> 1.3.1 
+  gfx->invertDisplay(false);
   gfx->fillScreen(BLACK);
 
 #ifdef GFX_BL
@@ -50,21 +52,25 @@ void DisplayCheck()
 {
   static unsigned long timedInterval;
   static int Color;
+  static bool ips;
   if (millis() >= timedInterval) {
     timedInterval = millis()+1000;
     Color = Color+1; 
-    if (Color > 5){Color=0;}
-    gfx->setTextSize(4);
+    if (Color > 5){Color=0; ips=!ips;
+     gfx->invertDisplay(ips); gfx->setTextSize(2);
+     gfx->fillRect(0, 0, 480, 20,BLACK);gfx->setTextColor(WHITE);Writeat(0,0, "INVERTING DISPLAY Colours?"); }
+     gfx->setTextSize(4);
     switch (Color){
-      case 0: gfx->fillScreen(WHITE);gfx->setTextColor(BLACK);Writeat(180,50,"WHITE");
+      //gfx->fillRect(0, 00, 480, 20,BLACK);gfx->setTextColor(WHITE);Writeat(0,0, "WHITE");
+      case 0: gfx->fillRect(0, 20, 480, 460,WHITE);gfx->setTextColor(BLACK);Writeat(180,50,"WHITE");
       break;
-      case 1: gfx->fillScreen(BLACK);gfx->setTextColor(WHITE);Writeat(180,50,"BLACK");
+      case 1: gfx->fillRect(0, 20, 480, 460,BLACK);;gfx->setTextColor(WHITE);Writeat(180,50,"BLACK");
       break;
-      case 2: gfx->fillScreen(RED);gfx->setTextColor(BLACK);Writeat(180,50,"RED");
+      case 2: gfx->fillRect(0, 20, 480, 460,RED);;gfx->setTextColor(BLACK);Writeat(180,50,"RED");
       break;
-      case 3: gfx->fillScreen(GREEN);gfx->setTextColor(BLACK);Writeat(180,50,"GREEN");
+      case 3: gfx->fillRect(0, 20, 480, 460,GREEN);;gfx->setTextColor(BLACK);Writeat(180,50,"GREEN");
       break;
-      case 4: gfx->fillScreen(GREEN);gfx->setTextColor(BLACK);Writeat(180,50,"BLUE");
+      case 4: gfx->fillRect(0, 20, 480, 460,BLUE);;gfx->setTextColor(BLACK);Writeat(180,50,"BLUE");
       break;
     }
   }
