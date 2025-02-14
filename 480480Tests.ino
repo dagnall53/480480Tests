@@ -51,8 +51,10 @@ String bottom = "^^ zZ.xX,cC?vV!bB'nN\"mM-";
 
 int caps = 0;
 bool change = false;
-int sz = 3;
-
+int sz = 3;  //NOT size
+int Keyboard_X =0;
+int Keyboard_Y = 240;
+int Key_Size = 1;
 String text = "";
 
 
@@ -237,28 +239,28 @@ boolean CompStruct(MySettings A, MySettings B) {  // does not check ssid and pas
 void keyboard(int type) {
   // draw the keyboard
   for (int x = 0; x < 10; x++) {
-    int a = (x * 4) + (20 * x) + 2;
-    gfx->drawRoundRect(a, 120, 20, 25, 1, WHITE);
-    gfx->setCursor(a + 5, 120 + 15);
+    int a = (x * 4) + (20 * x) + 2 + Keyboard_X;
+    gfx->drawRoundRect(a, Keyboard_Y, 20, 25, 1, WHITE);
+    gfx->setCursor(a + 5, Keyboard_Y + 15);
     gfx->print(top.charAt((x * sz) + type));
   }
 
   for (int x = 0; x < 9; x++) {
-    int a = (x * 4) + (20 * x) + 13;
-    gfx->drawRoundRect(a, 150, 20, 25, 1, WHITE);
-    gfx->setCursor(a + 5, 150 + 15);
+    int a = (x * 4) + (20 * x) + 13 + Keyboard_X;
+    gfx->drawRoundRect(a, Keyboard_Y + 30, 20, 25, 1, WHITE);
+    gfx->setCursor(a + 5, Keyboard_Y + 30 + 15);
     gfx->print(middle.charAt((x * sz) + type));
   }
 
   for (int x = 0; x < 8; x++) {
-    int a = (x * 4) + (20 * x) + 25;
-    gfx->drawRoundRect(a, 180, 20, 25, 1, x == 0 ? GREEN : WHITE);
-    gfx->setCursor(a + 5, 180 + 15);
+    int a = (x * 4) + (20 * x) + 25 + Keyboard_X;
+    gfx->drawRoundRect(a, Keyboard_Y + 60, 20, 25, 1, x == 0 ? GREEN : WHITE);
+    gfx->setCursor(a + 5, Keyboard_Y + 60 + 15);
     gfx->print(bottom.charAt((x * sz) + type));
   }
 
-  gfx->drawRoundRect(55, 210, 30, 25, 1, BLUE);
-  gfx->drawRoundRect(90, 210, 60, 25, 1, WHITE);
-  gfx->drawRoundRect(155, 210, 30, 25, 1, RED);
+  gfx->drawRoundRect(55+ Keyboard_X, Keyboard_Y + 90, 30, 25, 1, BLUE);
+  gfx->drawRoundRect(90+ Keyboard_X, Keyboard_Y + 90, 60, 25, 1, WHITE);
+  gfx->drawRoundRect(155+ Keyboard_X, Keyboard_Y + 90, 30, 25, 1, RED);
 }
 
