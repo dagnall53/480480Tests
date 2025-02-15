@@ -44,19 +44,14 @@ MySettings Default_Settings = { 127, 2002, 1, false, true, true, 2, "N2K0183-pro
 MySettings Saved_Settings;
 MySettings Current_Settings;
 
+
 //*********** for keyboard*************
-String top = "qQ1wW2eE3rR4tT5yY6uU7iI8oO9pP0";
-String middle = "aA_sS/dD:fF;gG(hH)jJ$kK&lL@";
-String bottom = "^^ zZ.xX,cC?vV!bB'nN\"mM-";
+#include "Keyboard.h"
 
 int caps = 0;
-bool change = false;
-int sz = 3;  //NOT size
-int Keyboard_X =0;
-int Keyboard_Y = 240;
-int Key_Size = 2;
+
 int text_height =16; //default?
-int font_offset =text_height;
+int font_offset;
 String text = "";
 
 
@@ -100,7 +95,7 @@ void setup() {
 //FreeSansBold24pt7b is 56?
   gfx->setFont(&FreeMono8pt7b);
   text_height=16;
-  font_offset=text_height;  // lift slightly? 
+  font_offset=text_height -2;  // lift slightly? 
    /// can this be set from fonts??
   dataline(Current_Settings, "Current");
 
@@ -116,9 +111,12 @@ void DisplayCheck(bool invertcheck) {
   static bool ips;
   if (millis() >= timedInterval) {
     timedInterval = millis()+1000;
-    if (invertcheck) {    
+    if (invertcheck) {   
+      Serial.println(" Timed display check"); 
       Color = Color+1; 
-      if (Color > 5){Color=0; ips=!ips;gfx->invertDisplay(ips);}  
+      if (Color > 5){Color=0; ips=!ips;
+                //gfx->invertDisplay(ips);}
+                 }  
       gfx->fillRect(300,text_height, 180, text_height*2,BLACK);
       gfx->setTextColor(WHITE); 
       if (ips) {Writeat(310,text_height, "INVERTED");} 
@@ -142,13 +140,25 @@ void DisplayCheck(bool invertcheck) {
   
 }
 
-bool actionrequired;
+bool actionrequired = false;
+String PressedKey;
 
 void loop() {
   DisplayCheck(true);
-  actionrequired=touch_check(true);
+  if(touch_check(true)) {  actionrequired=true;}
+  else { if (actionrequired){
+         actionrequired=false;
+         Serial.println("detected lift off key");}
+      }
 
-
+  // if(touch_check(true)) {   
+  //   actionrequired=true;
+  //   PressedKey= key(ts.points[0].x, ts.points[0].y, caps);}
+  //   else {if (actionrequired) {   //activate on lifting finger! 
+  //       text+=PressedKey;  
+  //       gfx->setCursor(200, 80);
+  //       gfx->print(text + "_");
+  //       actionrequired=false;}   } 
 }
 
 
@@ -183,7 +193,6 @@ bool touch_check(bool debug) {
       gfx->setTextSize(1); 
       gfx->fillRect(0, (i+2)*text_height, 300,text_height,GREEN);
       gfx->setTextColor(BLACK);
-      //gfx->setCursor(0, ((i+2)*text_height)+font_offset);
       GFXPrintf(0,((i+2)*text_height),"Touch [%i] X:%i Y:%i size:%i ",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
       Screenpopulated[i]=true;
       }
@@ -244,41 +253,9 @@ boolean CompStruct(MySettings A, MySettings B) {  // does not check ssid and pas
 }
 
 
-void keyboard(int type) {
-  // draw the keyboard
-  gfx->setTextColor(WHITE);// reset in case its has been changed!
-  for (int x = 0; x < 10; x++) {
-    int a = Key_Size*((x * 4) + (20 * x) + 2) + Keyboard_X;
-    gfx->drawRoundRect(a, Keyboard_Y, 20*Key_Size, 25*Key_Size, 1, WHITE);
-    gfx->setCursor(a + 5*Key_Size, Keyboard_Y + 15*Key_Size);
-    gfx->setTextSize(Key_Size);
-    gfx->print(top.charAt((x * sz) + type));
-  }
 
-  for (int x = 0; x < 9; x++) {
-    int a = Key_Size*((x * 4) + (20 * x) + 13) + Keyboard_X;
-    gfx->drawRoundRect(a, Keyboard_Y + (30*Key_Size), 20*Key_Size, 25*Key_Size, 1, WHITE);
-    gfx->setCursor(a + 5*Key_Size, Keyboard_Y + (30*Key_Size) + 15*Key_Size);
-    gfx->setTextSize(Key_Size);
-    gfx->print(middle.charAt((x * sz) + type));
-  }
-
-  for (int x = 0; x < 8; x++) {
-    int a = Key_Size*((x * 4) + (20 * x) + 25) + Keyboard_X;
-    gfx->drawRoundRect(a, Keyboard_Y + (60*Key_Size), 20*Key_Size, 25*Key_Size, 1, x == 0 ? GREEN : WHITE);
-    gfx->setCursor(a + 5*Key_Size, Keyboard_Y + (60*Key_Size) + 15*Key_Size);
-    gfx->setTextSize(Key_Size);
-    gfx->print(bottom.charAt((x * sz) + type));
-  }
-
-  gfx->drawRoundRect((55*Key_Size)+ Keyboard_X, Keyboard_Y + (90*Key_Size), 30*Key_Size, 25*Key_Size, 1, BLUE);
-  gfx->drawRoundRect((90*Key_Size)+ Keyboard_X, Keyboard_Y + (90*Key_Size), 60*Key_Size, 25*Key_Size, 1, WHITE);
-  gfx->drawRoundRect((155*Key_Size)+ Keyboard_X, Keyboard_Y + (90*Key_Size), 30*Key_Size, 25*Key_Size, 1, RED);
-  gfx->setTextSize(1);
-}
-
-void Writeat(int h,int v, const char* text){ //Wriet text at h,v (using TOP LEFT of text convention)
-  gfx->setCursor(h, v+font_offset-2);   // offset up/down plus one pixel for GFXFONTS that start at Bottom left. Standard fonts start at TOP LEFT
+void Writeat(int h,int v, const char* text){ //Write text at h,v (using fontoffset to use TOP LEFT of text convention)
+  gfx->setCursor(h, v+font_offset);   // offset up/down for GFXFONTS that start at Bottom left. Standard fonts start at TOP LEFT
   gfx->println(text);
 }
 
