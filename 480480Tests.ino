@@ -112,7 +112,7 @@ void DisplayCheck(bool invertcheck) {
   if (millis() >= timedInterval) {
     timedInterval = millis()+1000;
     if (invertcheck) {   
-      Serial.println(" Timed display check"); 
+      //Serial.println(" Timed display check"); 
       Color = Color+1; 
       if (Color > 5){Color=0; ips=!ips;
                 //gfx->invertDisplay(ips);}
@@ -145,10 +145,10 @@ String PressedKey;
 
 void loop() {
   DisplayCheck(true);
-  if(touch_check(true)) {  actionrequired=true;}
+  if(touch_check(false)) {  actionrequired=true;}
   else { if (actionrequired){
          actionrequired=false;
-         Serial.println("detected lift off key");}
+         Serial.printf("  detected lift off key %s  [%i] [%i] \n",key(ts.points[0].x, ts.points[0].y, caps),ts.points[0].x, ts.points[0].y  );}
       }
 
   // if(touch_check(true)) {   
