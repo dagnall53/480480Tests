@@ -55,7 +55,8 @@ int sz = 3;  //NOT size
 int Keyboard_X =0;
 int Keyboard_Y = 240;
 int Key_Size = 2;
-int text_height =10; //default?
+int text_height =16; //default?
+int font_offset =text_height;
 String text = "";
 
 
@@ -79,10 +80,10 @@ void setup() {
   pinMode(GFX_BL, OUTPUT);
   digitalWrite(GFX_BL, HIGH);
 #endif
-  gfx->setTextColor(WHITE);
-  gfx->setTextSize(4); 
-  gfx->setCursor(180, 50);
-  gfx->println(F("START "));
+  // gfx->setTextColor(WHITE);
+  // gfx->setTextSize(4); 
+  // gfx->setCursor(180, 50);
+  // gfx->println(F("START "));
   delay(500); // .5 seconds
   EEPROM_READ();  // setup and read saved variables into Saved_Settings
   //dataline(Saved_Settings, "Saved");
@@ -91,27 +92,23 @@ void setup() {
   if (Current_Settings.EpromKEY != 127) {
     Current_Settings = Default_Settings;
     EEPROM_WRITE();
-  }
+  }    
+  
+  gfx->setTextColor(WHITE, BLACK);
+//FreeSansBold10pt7b is 24 pixel?
+//FreeMono8pt7b is 16 ?
+//FreeSansBold24pt7b is 56?
+  gfx->setFont(&FreeMono8pt7b);
+  text_height=16;
+  font_offset=text_height;  // lift slightly? 
+   /// can this be set from fonts??
   dataline(Current_Settings, "Current");
 
   //setup keyboard
-    gfx->setTextColor(WHITE, BLACK);
-  gfx->setFont(&FreeMono8pt7b);
-
-  gfx->setCursor(30, 80);
-  gfx->print(text + "_");
-
   keyboard(caps);
-
-
-
-
 }
 
-void Writeat(int h,int v, const char* text){
-  gfx->setCursor(h, v);
-  gfx->println(text);
-}
+
 
 void DisplayCheck(bool invertcheck) {
   static unsigned long timedInterval;
@@ -119,31 +116,36 @@ void DisplayCheck(bool invertcheck) {
   static bool ips;
   if (millis() >= timedInterval) {
     timedInterval = millis()+1000;
-    Color = Color+1; 
-    if (Color > 5){Color=0; ips=!ips;
-     if (invertcheck) {gfx->invertDisplay(ips); gfx->setTextSize(2);
-     gfx->fillRect(0, 0, 480, 40,BLACK);gfx->setTextColor(WHITE);Writeat(0,0, "INVERTING DISPLAY Colours?");} }
-     gfx->setTextSize(4);
+    if (invertcheck) {    
+      Color = Color+1; 
+      if (Color > 5){Color=0; ips=!ips;gfx->invertDisplay(ips);}  
+      gfx->fillRect(300,text_height, 180, text_height*2,BLACK);
+      gfx->setTextColor(WHITE); 
+      if (ips) {Writeat(310,text_height, "INVERTED");} 
+      else {  Writeat(310,text_height, " Normal ");}
+     
     switch (Color){
       //gfx->fillRect(0, 00, 480, 20,BLACK);gfx->setTextColor(WHITE);Writeat(0,0, "WHITE");
-      case 0: gfx->fillRect(0, 40, 480, 440,WHITE);gfx->setTextColor(BLACK);Writeat(180,50,"WHITE");
+      case 0: gfx->fillRect(300, 60, 180, 60,WHITE);gfx->setTextColor(BLACK);Writeat(310,62,"WHITE");
       break;
-      case 1: gfx->fillRect(0, 40, 480, 440,BLACK);;gfx->setTextColor(WHITE);Writeat(180,50,"BLACK");
+      case 1: gfx->fillRect(300, 60, 180, 60,BLACK);;gfx->setTextColor(WHITE);Writeat(310,62,"BLACK");
       break;
-      case 2: gfx->fillRect(0, 40, 480, 440,RED);;gfx->setTextColor(BLACK);Writeat(180,50,"RED");
+      case 2: gfx->fillRect(300, 60, 180, 60,RED);;gfx->setTextColor(BLACK);Writeat(310,62,"RED");
       break;
-      case 3: gfx->fillRect(0, 40, 480, 440,GREEN);;gfx->setTextColor(BLACK);Writeat(180,50,"GREEN");
+      case 3: gfx->fillRect(300, 60, 180, 60,GREEN);;gfx->setTextColor(BLACK);Writeat(310,62,"GREEN");
       break;
-      case 4: gfx->fillRect(0, 40, 480, 440,BLUE);;gfx->setTextColor(BLACK);Writeat(180,50,"BLUE");
+      case 4: gfx->fillRect(300, 60, 180, 60,BLUE);;gfx->setTextColor(BLACK);Writeat(310,62,"BLUE");
       break;
     }
+    }
   }
+  
 }
 
 bool actionrequired;
 
 void loop() {
-  //DisplayCheck(false);
+  DisplayCheck(true);
   actionrequired=touch_check(true);
 
 
@@ -169,22 +171,32 @@ void loop() {
 }
 
 bool touch_check(bool debug) {
+    static unsigned long LastTouch[16];
+    static bool Screenpopulated[16];
+    int i;
     ts.read();
   if (ts.isTouched){
-    for (int i=0; i<ts.touches; i++){
+    for (i=0; i<ts.touches; i++){
+      LastTouch[i]=millis();
       if (debug) {
       Serial.printf("Touch [%i] X:%i Y:%i size:%i \n",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
-      gfx->setTextSize(1); //8 is text height 1
-      gfx->fillRect(0, (i+1)*text_height, 480,(i+2)*text_height,BLACK);
-      gfx->setTextColor(WHITE);
-      gfx->setCursor(0, (i+1)*text_height);
-      gfx->printf("Touch [%i] X:%i Y:%i size:%i ",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
+      gfx->setTextSize(1); 
+      gfx->fillRect(0, (i+2)*text_height, 300,text_height,GREEN);
+      gfx->setTextColor(BLACK);
+      //gfx->setCursor(0, ((i+2)*text_height)+font_offset);
+      GFXPrintf(0,((i+2)*text_height),"Touch [%i] X:%i Y:%i size:%i ",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
+      Screenpopulated[i]=true;
       }
     }
     return true;
   } else {
+    if (debug) { // delete the debug line if touched not true
+      for (i=0;i<16;i++){
+          if (Screenpopulated[i] && (millis()>= LastTouch[i]+100))
+             {Screenpopulated[i]=false;gfx->fillRect(0, (i+2)*text_height, 300,text_height,BLACK);}
+             }}
     return false;
-  }
+    }
 }
 
 //*********** EEPROM functions *********
@@ -202,21 +214,15 @@ void EEPROM_READ() {
   EEPROM.get(0, Saved_Settings);
   //dataline(Saved_Settings, "EEPROM_Read");
 }
-void dataline(MySettings A, String Text) {
 
+//************** display housekeeping ************
+void dataline(MySettings A, String Text) {
   int i =0; // line to start print on for now!
   //gfx->fillRect(0, TOP_FIXED_AREA, XMAX, YMAX - TOP_FIXED_AREA, TFT_BLACK);
-      gfx->setTextSize(1); //8 is text height 1
-      gfx->fillRect(0, (i+1)*text_height, 480,(i+2)*text_height,BLACK);
-      gfx->setTextColor(WHITE);
-      gfx->setCursor(0, i*text_height);
-  gfx->printf("%d, %d SER<%d>", A.EpromKEY, A.Mode, A.Serial_on);
-  gfx->setTextColor(BLUE);
-  gfx->printf("UDP<%d><%d> ", A.UDP_PORT, A.UDP_ON);
-  gfx->setTextColor(GREEN);
-  gfx->printf("ESP<%d>", A.ESP_NOW_ON);
-  gfx->setTextColor(WHITE);  // reset to initial state
-
+  gfx->setTextSize(1); 
+  gfx->fillRect(0, (i)*text_height, 300,text_height,RED);
+  gfx->setTextColor(WHITE);
+  GFXPrintf(0, (i)*text_height,"%s: Mode<%d> Ser<%d> UDP<%d> UDP<%d>  ESP<%d> ", Text, A.Mode, A.Serial_on, A.UDP_PORT, A.UDP_ON, A.ESP_NOW_ON);
   Serial.printf("%d Dataline display %s: Mode<%d> Ser<%d> UDPPORT<%d> UDP<%d>  ESP<%d> ", A.EpromKEY, Text, A.Mode, A.Serial_on, A.UDP_PORT, A.UDP_ON, A.ESP_NOW_ON);
   Serial.print("SSID <");
   Serial.print(A.ssid);
@@ -240,6 +246,7 @@ boolean CompStruct(MySettings A, MySettings B) {  // does not check ssid and pas
 
 void keyboard(int type) {
   // draw the keyboard
+  gfx->setTextColor(WHITE);// reset in case its has been changed!
   for (int x = 0; x < 10; x++) {
     int a = Key_Size*((x * 4) + (20 * x) + 2) + Keyboard_X;
     gfx->drawRoundRect(a, Keyboard_Y, 20*Key_Size, 25*Key_Size, 1, WHITE);
@@ -269,4 +276,72 @@ void keyboard(int type) {
   gfx->drawRoundRect((155*Key_Size)+ Keyboard_X, Keyboard_Y + (90*Key_Size), 30*Key_Size, 25*Key_Size, 1, RED);
   gfx->setTextSize(1);
 }
+
+void Writeat(int h,int v, const char* text){ //Wriet text at h,v (using TOP LEFT of text convention)
+  gfx->setCursor(h, v+font_offset-2);   // offset up/down plus one pixel for GFXFONTS that start at Bottom left. Standard fonts start at TOP LEFT
+  gfx->println(text);
+}
+
+void GFXPrintf(int h,int v,const char* fmt, ...) {  //complete object type suitable for holding the information needed by the macros va_start, va_copy, va_arg, and va_end.
+  static char msg[300] = { '\0' };        // used in message buildup
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(msg, 128, fmt, args);
+  va_end(args);
+  int len = strlen(msg);
+  Writeat(h,v,msg);
+  
+}
+
+
+
+//********* Send Advice function - useful for messages can be switched on/off here for debugging 
+void sendAdvice(String message) {  // just a general purpose advice send that makes sure it sends at 115200
+
+    Serial.print(message);
+
+}
+void sendAdvicef(const char* fmt, ...) {  //complete object type suitable for holding the information needed by the macros va_start, va_copy, va_arg, and va_end.
+  static char msg[300] = { '\0' };        // used in message buildup
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(msg, 128, fmt, args);
+  va_end(args);
+  // add checksum?
+  int len = strlen(msg);
+  sendAdvice(msg);
+  delay(10); // let it send!
+}
+
+//************ TIMING FUNCTIONS FOR TESTING PURPOSES ONLY ******************
+//Note this is also an example of how useful Function overloading can be!! 
+void EventTiming(String input ){
+  EventTiming(input,1); // 1 should be ignored as this is start or stop! but will also give immediate print!
+}
+
+void EventTiming(String input, int number){// Event timing, Usage START, STOP , 'Descrption text'   Number waits for the Nth call before serial.printing results (Description text + results).  
+  static unsigned long Start_time;
+  static unsigned long timedInterval;
+  static unsigned long _MaxInterval;
+  static unsigned long SUMTotal;
+  static int calls = 0;  static int reads = 0;
+  long NOW=micros();
+  if (input == "START") { Start_time = NOW; return ;}
+  if (input == "STOP") {timedInterval= NOW- Start_time; SUMTotal=SUMTotal+timedInterval;
+                       if (timedInterval >= _MaxInterval){_MaxInterval=timedInterval;}
+                       reads++;  
+                       return; }
+  calls++; 
+  if (calls < number){return;}
+  if (reads>=2){ 
+
+    if (calls >= 2) {Serial.print("\r\n TIMING ");Serial.print(input); Serial.print(" Using ("); Serial.print(reads);Serial.print(") Samples"); 
+        Serial.print(" last: ");Serial.print(timedInterval);
+        Serial.print("us Average : ");Serial.print(SUMTotal/reads);
+        Serial.print("us  Max : ");Serial.print(_MaxInterval);Serial.println("uS");}
+    else {Serial.print("\r\n TIMED ");Serial.print(input); Serial.print(" was :");Serial.print(timedInterval);Serial.println("uS");}
+    _MaxInterval=0;SUMTotal=0;reads=0; calls=0;
+ }
+}
+
 
