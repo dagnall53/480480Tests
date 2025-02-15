@@ -144,21 +144,32 @@ bool actionrequired = false;
 String PressedKey;
 
 void loop() {
-  DisplayCheck(true);
-  if(touch_check(false)) {  actionrequired=true;}
-  else { if (actionrequired){
-         actionrequired=false;
-         Serial.printf("  detected lift off key %s  [%i] [%i] \n",key(ts.points[0].x, ts.points[0].y, caps),ts.points[0].x, ts.points[0].y  );}
+  static unsigned long lastkey;
+  String local; 
+  DisplayCheck(false);
+
+
+  if(touch_check(false)) {actionrequired=true;lastkey=millis();}
+    else { // do all key actions on LIFTING touch 
+    if ( actionrequired && (millis()> lastkey+100) )  {
+        actionrequired=false;
+        local=key(ts.points[0].x, ts.points[0].y, caps);
+        if (local=="^"){caps=caps+1; if (caps>2) {caps=0;}
+              keyboard(caps); local="";}
+        if (local=="DEL"){  text.remove(text.length()-1);
+            local="";}
+         if (local=="CLR"){  text="";
+            local="";} 
+         if (local=="DO"){local="";    } // and stuff to be done from here!      
+
+        text.concat(local);
+           
+         WriteinBox(0,200,2,text.c_str());
+         Serial.printf(" [%i] [%i] detected lift off keyboard(%i) = key %s  Text[%s] \n",
+         ts.points[0].x, ts.points[0].y,caps,key(ts.points[0].x, ts.points[0].y, caps),text);
+         }
       }
 
-  // if(touch_check(true)) {   
-  //   actionrequired=true;
-  //   PressedKey= key(ts.points[0].x, ts.points[0].y, caps);}
-  //   else {if (actionrequired) {   //activate on lifting finger! 
-  //       text+=PressedKey;  
-  //       gfx->setCursor(200, 80);
-  //       gfx->print(text + "_");
-  //       actionrequired=false;}   } 
 }
 
 
@@ -229,10 +240,14 @@ void dataline(MySettings A, String Text) {
   int i =0; // line to start print on for now!
   //gfx->fillRect(0, TOP_FIXED_AREA, XMAX, YMAX - TOP_FIXED_AREA, TFT_BLACK);
   gfx->setTextSize(1); 
-  gfx->fillRect(0, (i)*text_height, 300,text_height,RED);
+  gfx->fillRect(0, (i)*text_height, 300,(i+1)*text_height,RED);
   gfx->setTextColor(WHITE);
   GFXPrintf(0, (i)*text_height,"%s: Mode<%d> Ser<%d> UDP<%d> UDP<%d>  ESP<%d> ", Text, A.Mode, A.Serial_on, A.UDP_PORT, A.UDP_ON, A.ESP_NOW_ON);
-  Serial.printf("%d Dataline display %s: Mode<%d> Ser<%d> UDPPORT<%d> UDP<%d>  ESP<%d> ", A.EpromKEY, Text, A.Mode, A.Serial_on, A.UDP_PORT, A.UDP_ON, A.ESP_NOW_ON);
+  i=1;
+  gfx->fillRect(0, (i)*text_height, 300,(i+1)*text_height,RED);
+  GFXPrintf(0, (i)*text_height,"SSID<%s> PWD<%s>", A.ssid, A.password);
+ 
+  Serial.printf("%d Dataline display %s: Mode<%d> Ser<%d> UDPPORT<%d> UDP<%d>  ESP<%d> \n ", A.EpromKEY, Text, A.Mode, A.Serial_on, A.UDP_PORT, A.UDP_ON, A.ESP_NOW_ON);
   Serial.print("SSID <");
   Serial.print(A.ssid);
   Serial.print(">  Password <");
@@ -251,13 +266,23 @@ boolean CompStruct(MySettings A, MySettings B) {  // does not check ssid and pas
   if (A.ListTextSize == B.ListTextSize) { same = true; }
   return same;
 }
+void WriteinBox(int h,int v, int size, const char* text ){ //Write text in filled box at h,v (using fontoffset to use TOP LEFT of text convention)
+  gfx->fillRect(h, v, 480,text_height*size,WHITE );
+  gfx->setTextColor(BLACK);gfx->setTextSize(size);
+  Writeat(h,v,size,text);
+  gfx->setTextSize(1);
+  }
 
 
 
-void Writeat(int h,int v, const char* text){ //Write text at h,v (using fontoffset to use TOP LEFT of text convention)
-  gfx->setCursor(h, v+font_offset);   // offset up/down for GFXFONTS that start at Bottom left. Standard fonts start at TOP LEFT
+void Writeat(int h,int v, int size, const char* text){ //Write text at h,v (using fontoffset to use TOP LEFT of text convention)
+  gfx->setCursor(h, v+ (size*font_offset)-(3*size));   // offset up/down for GFXFONTS that start at Bottom left. Standard fonts start at TOP LEFT
   gfx->println(text);
 }
+void Writeat(int h,int v,const char* text){
+  Writeat(h,v, 1, text);
+}
+
 
 void GFXPrintf(int h,int v,const char* fmt, ...) {  //complete object type suitable for holding the information needed by the macros va_start, va_copy, va_arg, and va_end.
   static char msg[300] = { '\0' };        // used in message buildup

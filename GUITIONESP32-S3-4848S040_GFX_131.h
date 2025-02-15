@@ -1,5 +1,5 @@
 /*******************************************************************************
-Pins and defines for GFX - various versions!
+Pins and defines for Arduino GFX - various versions!
  ******************************************************************************/
  
 #ifndef _ESPGFDEF_H_
