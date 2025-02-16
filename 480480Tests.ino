@@ -2,9 +2,6 @@
 
 From scratch build! 
  for keyboard  trying to use elements of https://github.com/fbiego/esp32-touch-keyboard/tree/main
-
-
-
 */
 // * Start of Arduino_GFX setting
 
@@ -21,16 +18,13 @@ From scratch build!
 #define TOUCH_MAP_X2 0
 #define TOUCH_MAP_Y1 480
 #define TOUCH_MAP_Y2 0
-bool SwipeLeft,SwipeRight,SwipeUp,SwipeDown;
-
-int touch_last_x = 0, touch_last_y = 0;
 
 TAMC_GT911 ts = TAMC_GT911(TOUCH_SDA, TOUCH_SCL, TOUCH_INT, TOUCH_RST, TOUCH_WIDTH, TOUCH_HEIGHT);
 #include <EEPROM.h>
 #include "fonts.h"
 //**   structures for my variables (for saving) 
 struct MySettings {
-  int EpromKEY;  // to allow check for clean EEprom and no data stored
+  int EpromKEY;  // to allow check for clean EEprom and no data stored change in the default will result in eeprom being reset
   int UDP_PORT;
   int Mode;
   bool UDP_ON;
@@ -45,7 +39,6 @@ struct MySettings {
 MySettings Default_Settings = { 129, 2002, 1, false, true, true, 2, "N2K0183-proto", "12345678",0 };
 MySettings Saved_Settings;
 MySettings Current_Settings;
-
 
 //*********** for keyboard*************
 #include "Keyboard.h"
@@ -83,10 +76,9 @@ void setup() {
   // gfx->println(F("START "));
   delay(500); // .5 seconds
   EEPROM_READ();  // setup and read saved variables into Saved_Settings
-  //dataline(Saved_Settings, "Saved");
-  //dataline(Default_Settings, "Default");
+
   Current_Settings = Saved_Settings;
-  if (Current_Settings.EpromKEY != 127) {
+  if (Current_Settings.EpromKEY != Default_Settings.EpromKEY) {
     Current_Settings = Default_Settings;
     EEPROM_WRITE();
   }    
@@ -99,7 +91,9 @@ void setup() {
   text_height=16;
   font_offset=text_height -2;  // lift slightly? 
    /// can this be set from fonts??
-  dataline(Current_Settings, "Current");
+  dataline(1,Current_Settings, "Current");
+    //dataline(4,Saved_Settings, "Saved");
+  //dataline(6,Default_Settings, "Default");
 
   //setup keyboard
   keyboard(caps);
@@ -109,14 +103,18 @@ void setup() {
 
 void DisplayCheck(bool invertcheck) {
   static unsigned long timedInterval;
+  static unsigned long updatetiming;
+   static unsigned long LoopTime;
   static int Color;
   static bool ips;
-  
+  LoopTime=millis()-updatetiming;
+  updatetiming=millis();
   if (millis() >= timedInterval) {
     //***** Timed updates *******
     timedInterval = millis()+1000;
+    //Serial.printf("Loop Timing %ims",LoopTime);
     ScreenShow(1,Current_Settings, "Current"); 
-
+  
 
     if (invertcheck) {   
       //Serial.println(" Timed display check"); 
@@ -151,15 +149,20 @@ bool actionrequired = false;
 String PressedKey;
 
 void loop() {
-  static unsigned long lastkey;
+  DisplayCheck(false);
+  Use_Keyboard(Current_Settings.password,sizeof(Current_Settings.password));
+ }
+
+void Use_Keyboard (char * DATA, int maxsize ) {
   static unsigned long lastkeypressed;
   static bool KeyPressUsed;
   static bool KeyCommand;
-
+  static bool VariableChanged = false;
   char KEY[6];
-  DisplayCheck(false);
- // Use_Keyboard(text);
-  ts.read();
+  static char  Local_var[30];
+  if  (!VariableChanged){strcpy( Local_var,DATA); WriteinBox(0,200,2,  Local_var);VariableChanged=true; } // get a local copy to modify it 
+    ts.read();
+    int st;
   //Serial.printf(" Pressure test %i \n",ts.points[0].size);
   if (!KeyPressUsed && (ts.isTouched) && (ts.points[0].size >35) && (KeyOver(ts.points[0].x, ts.points[0].y, KEY,caps))) 
    {
@@ -168,52 +171,26 @@ void loop() {
        //Serial.printf(" Key test %s \n",KEY);
        if (!strcmp(KEY,"^")){caps=caps+1; if (caps>2) {caps=0;} //NB strcmp returns 0 if NO Difference, else position of non match characters
               keyboard(caps); KeyCommand=true;}
-       if (!strcmp(KEY,"DEL")){text.remove(text.length()-1);KeyCommand=true;}
-       if (!strcmp(KEY,"CLR")){text="";KeyCommand=true;}
-       if (!strcmp(KEY,"ENT")){
-           Serial.print(text);KeyCommand=true;
-           text="";
+       if (!strcmp(KEY,"DEL")){  Local_var[strlen( Local_var)-1] = '\0'; // NOTE single inverted comma !!!
+                                KeyCommand=true;}
+       if (!strcmp(KEY,"CLR")){  Local_var[0]='\0';KeyCommand=true;}
+      if (!strcmp(KEY,"rst")){ strcpy( Local_var,DATA); WriteinBox(0,200,2,  Local_var);KeyCommand=true;}
+       if (!strcmp(KEY,"ENT")){strcpy(DATA, Local_var);
+           Serial.printf("Updated was %s is  %s",DATA,  Local_var); 
+           strcpy(DATA, Local_var); KeyCommand=true;VariableChanged=false;
            EEPROM_WRITE;   
            }    
-       if (!KeyCommand){ // add character
-        text.concat(KEY);}
-        WriteinBox(0,200,2,text.c_str());
+       if (!KeyCommand){ //Serial.printf(" adding %s on end of variable<%s>\n",KEY,Local_var);
+        strcat( Local_var,KEY);}
+        WriteinBox(0,200,2,  Local_var);
     }
-  if (!ts.isTouched && KeyPressUsed && (millis()> (250+lastkeypressed))){KeyPressUsed =false;}  // limit speed of input 
+  if (!ts.isTouched && KeyPressUsed && (millis()> (250+lastkeypressed))){KeyPressUsed =false;} 
+
 }
-
-// void Use_Keyboard (String * VARIABLE) {
-//   static unsigned long lastkeypressed;
-//   static bool KeyPressUsed;
-//   static bool KeyCommand;
-//   char KEY[6];
-//     ts.read();
-//   //Serial.printf(" Pressure test %i \n",ts.points[0].size);
-//   if (!KeyPressUsed && (ts.isTouched) && (ts.points[0].size >35) && (KeyOver(ts.points[0].x, ts.points[0].y, KEY,caps))) 
-//    {
-//        KeyPressUsed =true; lastkeypressed=millis();
-//        KeyCommand=false;
-//        //Serial.printf(" Key test %s \n",KEY);
-//        if (!strcmp(KEY,"^")){caps=caps+1; if (caps>2) {caps=0;} //NB strcmp returns 0 if NO Difference, else position of non match characters
-//               keyboard(caps); KeyCommand=true;}
-//        if (!strcmp(KEY,"DEL")){ VARIABLE.remove( VARIABLE.length()-1);KeyCommand=true;}
-//        if (!strcmp(KEY,"CLR")){ VARIABLE="";KeyCommand=true;}
-//        if (!strcmp(KEY,"ENT")){
-//            Serial.print( VARIABLE);KeyCommand=true;
-//             VARIABLE="";
-//            EEPROM_WRITE;   
-//            }    
-//        if (!KeyCommand){ // add character
-//          VARIABLE.concat(KEY);}
-//         WriteinBox(0,200,2, VARIABLE.c_str());
-//     }
-//   if (!ts.isTouched && KeyPressUsed && (millis()> (250+lastkeypressed))){KeyPressUsed =false;} 
-
-// }
 
 
 bool Touchswipe(){
-
+return false;
 }
 
 //*********** Touch stuff ****************
@@ -276,7 +253,7 @@ bool Touchswipe(){
 //*********** EEPROM functions *********
 void EEPROM_WRITE() {
   // save my current settings
-  //dataline(Current_Settings, "EEPROM_save");
+  //dataline(1,Current_Settings, "EEPROM_save");
   Serial.println("SAVING EEPROM");
   EEPROM.put(0, Current_Settings);
   EEPROM.commit();
@@ -286,7 +263,7 @@ void EEPROM_READ() {
   EEPROM.begin(512);
   Serial.println("READING EEPROM");
   EEPROM.get(0, Saved_Settings);
-  //dataline(Saved_Settings, "EEPROM_Read");
+  //dataline(1,Saved_Settings, "EEPROM_Read");
 }
 
 //************** display housekeeping ************
@@ -299,8 +276,8 @@ void ScreenShow(int LINE,MySettings A, String Text) {
   GFXPrintf(0, (LINE+1)*text_height,"Page[%i] SSID<%s> PWD<%s>",A.DisplayPage, A.ssid, A.password);
 }
 
-void dataline(MySettings A, String Text) {
-  ScreenShow(1,A,Text);
+void dataline(int line, MySettings A, String Text) {
+  ScreenShow(line,A,Text);
   Serial.printf("%d Dataline display %s: Mode<%d> Ser<%d> UDPPORT<%d> UDP<%d>  ESP<%d> \n ", A.EpromKEY, Text, A.Mode, A.Serial_on, A.UDP_PORT, A.UDP_ON, A.ESP_NOW_ON);
   Serial.print("SSID <");
   Serial.print(A.ssid);
