@@ -21,6 +21,7 @@ From scratch build!
 #define TOUCH_MAP_X2 0
 #define TOUCH_MAP_Y1 480
 #define TOUCH_MAP_Y2 0
+bool SwipeLeft,SwipeRight,SwipeUp,SwipeDown;
 
 int touch_last_x = 0, touch_last_y = 0;
 
@@ -38,9 +39,10 @@ struct MySettings {
   uint8_t ListTextSize;  // fontsize for listed text (2 is readable, 1 gives more lines)// all off
   char ssid[16];
   char password[16];
+  uint8_t DisplayPage;
 };
 
-MySettings Default_Settings = { 127, 2002, 1, false, true, true, 2, "N2K0183-proto", "12345678" };
+MySettings Default_Settings = { 129, 2002, 1, false, true, true, 2, "N2K0183-proto", "12345678",0 };
 MySettings Saved_Settings;
 MySettings Current_Settings;
 
@@ -109,8 +111,13 @@ void DisplayCheck(bool invertcheck) {
   static unsigned long timedInterval;
   static int Color;
   static bool ips;
+  
   if (millis() >= timedInterval) {
+    //***** Timed updates *******
     timedInterval = millis()+1000;
+    ScreenShow(1,Current_Settings, "Current"); 
+
+
     if (invertcheck) {   
       //Serial.println(" Timed display check"); 
       Color = Color+1; 
@@ -145,37 +152,72 @@ String PressedKey;
 
 void loop() {
   static unsigned long lastkey;
-  String local; 
+  static unsigned long lastkeypressed;
+  static bool KeyPressUsed;
+  static bool KeyCommand;
+
+  char KEY[6];
   DisplayCheck(false);
+ // Use_Keyboard(text);
+  ts.read();
+  //Serial.printf(" Pressure test %i \n",ts.points[0].size);
+  if (!KeyPressUsed && (ts.isTouched) && (ts.points[0].size >35) && (KeyOver(ts.points[0].x, ts.points[0].y, KEY,caps))) 
+   {
+       KeyPressUsed =true; lastkeypressed=millis();
+       KeyCommand=false;
+       //Serial.printf(" Key test %s \n",KEY);
+       if (!strcmp(KEY,"^")){caps=caps+1; if (caps>2) {caps=0;} //NB strcmp returns 0 if NO Difference, else position of non match characters
+              keyboard(caps); KeyCommand=true;}
+       if (!strcmp(KEY,"DEL")){text.remove(text.length()-1);KeyCommand=true;}
+       if (!strcmp(KEY,"CLR")){text="";KeyCommand=true;}
+       if (!strcmp(KEY,"ENT")){
+           Serial.print(text);KeyCommand=true;
+           text="";
+           EEPROM_WRITE;   
+           }    
+       if (!KeyCommand){ // add character
+        text.concat(KEY);}
+        WriteinBox(0,200,2,text.c_str());
+    }
+  if (!ts.isTouched && KeyPressUsed && (millis()> (250+lastkeypressed))){KeyPressUsed =false;}  // limit speed of input 
+}
+
+// void Use_Keyboard (String * VARIABLE) {
+//   static unsigned long lastkeypressed;
+//   static bool KeyPressUsed;
+//   static bool KeyCommand;
+//   char KEY[6];
+//     ts.read();
+//   //Serial.printf(" Pressure test %i \n",ts.points[0].size);
+//   if (!KeyPressUsed && (ts.isTouched) && (ts.points[0].size >35) && (KeyOver(ts.points[0].x, ts.points[0].y, KEY,caps))) 
+//    {
+//        KeyPressUsed =true; lastkeypressed=millis();
+//        KeyCommand=false;
+//        //Serial.printf(" Key test %s \n",KEY);
+//        if (!strcmp(KEY,"^")){caps=caps+1; if (caps>2) {caps=0;} //NB strcmp returns 0 if NO Difference, else position of non match characters
+//               keyboard(caps); KeyCommand=true;}
+//        if (!strcmp(KEY,"DEL")){ VARIABLE.remove( VARIABLE.length()-1);KeyCommand=true;}
+//        if (!strcmp(KEY,"CLR")){ VARIABLE="";KeyCommand=true;}
+//        if (!strcmp(KEY,"ENT")){
+//            Serial.print( VARIABLE);KeyCommand=true;
+//             VARIABLE="";
+//            EEPROM_WRITE;   
+//            }    
+//        if (!KeyCommand){ // add character
+//          VARIABLE.concat(KEY);}
+//         WriteinBox(0,200,2, VARIABLE.c_str());
+//     }
+//   if (!ts.isTouched && KeyPressUsed && (millis()> (250+lastkeypressed))){KeyPressUsed =false;} 
+
+// }
 
 
-  if(touch_check(false)) {actionrequired=true;lastkey=millis();}
-    else { // do all key actions on LIFTING touch 
-    if ( actionrequired && (millis()> lastkey+100) )  {
-        actionrequired=false;
-        local=key(ts.points[0].x, ts.points[0].y, caps);
-        if (local=="^"){caps=caps+1; if (caps>2) {caps=0;}
-              keyboard(caps); local="";}
-        if (local=="DEL"){  text.remove(text.length()-1);
-            local="";}
-         if (local=="CLR"){  text="";
-            local="";} 
-         if (local=="DO"){local="";    } // and stuff to be done from here!      
-
-        text.concat(local);
-           
-         WriteinBox(0,200,2,text.c_str());
-         Serial.printf(" [%i] [%i] detected lift off keyboard(%i) = key %s  Text[%s] \n",
-         ts.points[0].x, ts.points[0].y,caps,key(ts.points[0].x, ts.points[0].y, caps),text);
-         }
-      }
+bool Touchswipe(){
 
 }
 
-
-
 //*********** Touch stuff ****************
- void TouchCheck(bool debug) {
+ void TouchValueShow(bool debug) {
   ts.read();
   if (ts.isTouched){
     for (int i=0; i<ts.touches; i++){
@@ -191,33 +233,45 @@ void loop() {
   }
 }
 
-bool touch_check(bool debug) {
-    static unsigned long LastTouch[16];
-    static bool Screenpopulated[16];
-    int i;
-    ts.read();
-  if (ts.isTouched){
-    for (i=0; i<ts.touches; i++){
-      LastTouch[i]=millis();
-      if (debug) {
-      Serial.printf("Touch [%i] X:%i Y:%i size:%i \n",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
-      gfx->setTextSize(1); 
-      gfx->fillRect(0, (i+2)*text_height, 300,text_height,GREEN);
-      gfx->setTextColor(BLACK);
-      GFXPrintf(0,((i+2)*text_height),"Touch [%i] X:%i Y:%i size:%i ",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
-      Screenpopulated[i]=true;
-      }
-    }
-    return true;
-  } else {
-    if (debug) { // delete the debug line if touched not true
-      for (i=0;i<16;i++){
-          if (Screenpopulated[i] && (millis()>= LastTouch[i]+100))
-             {Screenpopulated[i]=false;gfx->fillRect(0, (i+2)*text_height, 300,text_height,BLACK);}
-             }}
-    return false;
-    }
-}
+// bool touch_check(bool debug) {
+//     static unsigned long LastTouch[16];
+//     static bool Screenpopulated[16];
+//     static int lastx0,lasty0;
+//     int i;
+//     ts.read();
+//   if (ts.isTouched){
+//     for (i=0; i<ts.touches; i++){
+//       LastTouch[i]=millis();
+      
+//       if (i==0){ 
+//         if (debug) {
+//              Serial.printf("Touch X:%i lastx:%i Y:%i lasty:%i  \n",ts.points[i].x,lastx0,ts.points[i].y,lasty0);}
+//         SwipeLeft=false;SwipeRight=false;SwipeUp=false;SwipeDown=false;
+//         if ((lastx0-ts.points[i].x) >=20 ){SwipeLeft=true;}
+//         if ((ts.points[i].x - lastx0) >= 20){SwipeRight=true;}
+//         if (ts.points[i].y - lasty0>= -20){SwipeUp=true;}
+//         if (ts.points[i].y - lasty0>= +20){SwipeDown=true;}
+//         lastx0=ts.points[i].x;
+//         lasty0=ts.points[i].y;}
+//       if (debug) {
+//       //Serial.printf("Touch [%i] X:%i lastx:%i Y:%i lasty:%i size:%i \n",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
+//       gfx->setTextSize(1); 
+//       gfx->fillRect(0, (i+2)*text_height, 300,text_height,GREEN);
+//       gfx->setTextColor(BLACK);
+//       GFXPrintf(0,((i+2)*text_height),"Touch [%i] X:%i Y:%i size:%i ",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
+//       Screenpopulated[i]=true;
+//       }
+//     }
+//     return true;
+//   } else {
+//     if (debug) { // delete the debug line if touched not true
+//       for (i=0;i<16;i++){
+//           if (Screenpopulated[i] && (millis()>= LastTouch[i]+100))
+//              {Screenpopulated[i]=false;gfx->fillRect(0, (i+2)*text_height, 300,text_height,BLACK);}
+//              }}
+//     return false;
+//     }
+// }
 
 //*********** EEPROM functions *********
 void EEPROM_WRITE() {
@@ -236,17 +290,17 @@ void EEPROM_READ() {
 }
 
 //************** display housekeeping ************
-void dataline(MySettings A, String Text) {
-  int i =0; // line to start print on for now!
-  //gfx->fillRect(0, TOP_FIXED_AREA, XMAX, YMAX - TOP_FIXED_AREA, TFT_BLACK);
+void ScreenShow(int LINE,MySettings A, String Text) {
   gfx->setTextSize(1); 
-  gfx->fillRect(0, (i)*text_height, 300,(i+1)*text_height,RED);
+  gfx->fillRect(0, (LINE)*text_height, 480,(LINE+1)*text_height,RED);
   gfx->setTextColor(WHITE);
-  GFXPrintf(0, (i)*text_height,"%s: Mode<%d> Ser<%d> UDP<%d> UDP<%d>  ESP<%d> ", Text, A.Mode, A.Serial_on, A.UDP_PORT, A.UDP_ON, A.ESP_NOW_ON);
-  i=1;
-  gfx->fillRect(0, (i)*text_height, 300,(i+1)*text_height,RED);
-  GFXPrintf(0, (i)*text_height,"SSID<%s> PWD<%s>", A.ssid, A.password);
- 
+  GFXPrintf(0, (LINE)*text_height,"%s: Mode<%d> Ser<%d> UDP<%d> UDP<%d>  ESP<%d> ", Text, A.Mode, A.Serial_on, A.UDP_PORT, A.UDP_ON, A.ESP_NOW_ON);
+  gfx->fillRect(0, (LINE+1)*text_height, 480,(LINE+2)*text_height,RED);
+  GFXPrintf(0, (LINE+1)*text_height,"Page[%i] SSID<%s> PWD<%s>",A.DisplayPage, A.ssid, A.password);
+}
+
+void dataline(MySettings A, String Text) {
+  ScreenShow(1,A,Text);
   Serial.printf("%d Dataline display %s: Mode<%d> Ser<%d> UDPPORT<%d> UDP<%d>  ESP<%d> \n ", A.EpromKEY, Text, A.Mode, A.Serial_on, A.UDP_PORT, A.UDP_ON, A.ESP_NOW_ON);
   Serial.print("SSID <");
   Serial.print(A.ssid);
@@ -266,10 +320,10 @@ boolean CompStruct(MySettings A, MySettings B) {  // does not check ssid and pas
   if (A.ListTextSize == B.ListTextSize) { same = true; }
   return same;
 }
-void WriteinBox(int h,int v, int size, const char* text ){ //Write text in filled box at h,v (using fontoffset to use TOP LEFT of text convention)
+void WriteinBox(int h,int v, int size, const char* TEXT ){ //Write text in filled box at h,v (using fontoffset to use TOP LEFT of text convention)
   gfx->fillRect(h, v, 480,text_height*size,WHITE );
   gfx->setTextColor(BLACK);gfx->setTextSize(size);
-  Writeat(h,v,size,text);
+  Writeat(h,v,size,TEXT);
   gfx->setTextSize(1);
   }
 
