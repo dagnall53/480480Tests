@@ -33,7 +33,7 @@ struct MySettings {
   uint8_t ListTextSize;  // fontsize for listed text (2 is readable, 1 gives more lines)// all off
   char ssid[16];
   char password[16];
-  uint8_t DisplayPage;
+  int DisplayPage;
 };
 
 MySettings Default_Settings = { 129, 2002, 1, false, true, true, 2, "N2K0183-proto", "12345678",0 };
@@ -47,7 +47,15 @@ int caps = 0;
 
 int text_height =16; //default?
 int font_offset;
-String text = "";
+//String text = "";
+enum swipe {none,left,right,up,down};
+bool SwipeLeft,SwipeRight,SwipeUp,SwipeDown;
+
+/// various screens 
+#define maxscreens 3 //screens 0 1 2 3 
+
+
+
 
 
 void setup() {
@@ -149,10 +157,34 @@ bool actionrequired = false;
 String PressedKey;
 
 void loop() {
+  static int swipe;
   DisplayCheck(false);
   Use_Keyboard(Current_Settings.password,sizeof(Current_Settings.password));
- }
+  swipe=Touchswipe(Current_Settings.DisplayPage);
+  if (swipe) {screenSelect(swipe); }
+//Select screens 
+}
 
+
+uint8_t screenSelect(uint8_t swipe){
+  static int ScreentoShow;
+  
+ switch (swipe) {
+  case 2:
+    ScreentoShow =ScreentoShow+1;
+    if (ScreentoShow >= maxscreens){ScreentoShow=0;}
+  break; 
+  case 1:
+    ScreentoShow =ScreentoShow-1;
+    if (ScreentoShow <= 0 ){ScreentoShow=maxscreens;}
+  break; 
+ }
+  Serial.printf(" Screen %i selected",ScreentoShow);
+  return ScreentoShow;
+}
+
+
+//*********** Touch stuff ****************
 void Use_Keyboard (char * DATA, int maxsize ) {
   static unsigned long lastkeypressed;
   static bool KeyPressUsed;
@@ -189,11 +221,43 @@ void Use_Keyboard (char * DATA, int maxsize ) {
 }
 
 
-bool Touchswipe(){
-return false;
+int Touchswipe(int movement){// returns 0 (none) 1=left 2=right 3=up 4=down
+  static bool  swipecommandset;
+  static unsigned long movinginterval;
+  static unsigned long  lastswipesensed;
+  static int lastx0,lasty0,lastx1,lasty1;
+  uint8_t lastmovement = movement;
+  uint8_t temp;
+  int speed=20;
+  temp=0;
+  //Serial.printf("entering touchswipe\n");
+  if (!ts.isTouched && !swipecommandset) {//only allow a swipe After finger is removed this when touch REMOVED
+   if ((lastx0 - lastx1) >= speed ){temp=1;}
+   if ((lastx1 - lastx0) >= speed){temp=2;}
+   if ((lasty0 - lasty1) >= (speed/2)){temp=3;}  // up down harder to swipe 
+   if ((lasty1 - lasty0) >= (speed/2)){temp=4;}
+   if (lastmovement != temp) {
+    //Serial.printf("lastx%i lasty%i  currentx%i currenty%i SWIPE %i \n",lastx1,lasty1,lastx0,lasty0,temp);
+    movement=temp;
+    lastswipesensed=millis();
+    swipecommandset=true;
+     return temp;}
+   //Serial.printf("NOT Touched lastx%i lasty%i  currentx%i currenty%i SWIPE %i \n",lastx1,lasty1,lastx0,lasty0,temp);
+  }
+  else{    // only update movement memory at intervals whilst keypressed?
+    if (millis()> movinginterval+50){
+      movinginterval=millis();
+      lastx1=lastx0;lasty1=lasty0;// needs deeper memory!
+      lastx0=ts.points[0].x;
+      lasty0=ts.points[0].y;
+      }
+    if ( swipecommandset && (millis()> (250+ lastswipesensed))){ swipecommandset =false;} //reset
+    //Serial.printf(" Touched lastx%i lasty%i  currentx%i currenty%i SWIPE %i \n",lastx1,lasty1,lastx0,lasty0,temp);
+  }
+  return false ;
 }
 
-//*********** Touch stuff ****************
+
  void TouchValueShow(bool debug) {
   ts.read();
   if (ts.isTouched){
@@ -210,45 +274,7 @@ return false;
   }
 }
 
-// bool touch_check(bool debug) {
-//     static unsigned long LastTouch[16];
-//     static bool Screenpopulated[16];
-//     static int lastx0,lasty0;
-//     int i;
-//     ts.read();
-//   if (ts.isTouched){
-//     for (i=0; i<ts.touches; i++){
-//       LastTouch[i]=millis();
-      
-//       if (i==0){ 
-//         if (debug) {
-//              Serial.printf("Touch X:%i lastx:%i Y:%i lasty:%i  \n",ts.points[i].x,lastx0,ts.points[i].y,lasty0);}
-//         SwipeLeft=false;SwipeRight=false;SwipeUp=false;SwipeDown=false;
-//         if ((lastx0-ts.points[i].x) >=20 ){SwipeLeft=true;}
-//         if ((ts.points[i].x - lastx0) >= 20){SwipeRight=true;}
-//         if (ts.points[i].y - lasty0>= -20){SwipeUp=true;}
-//         if (ts.points[i].y - lasty0>= +20){SwipeDown=true;}
-//         lastx0=ts.points[i].x;
-//         lasty0=ts.points[i].y;}
-//       if (debug) {
-//       //Serial.printf("Touch [%i] X:%i lastx:%i Y:%i lasty:%i size:%i \n",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
-//       gfx->setTextSize(1); 
-//       gfx->fillRect(0, (i+2)*text_height, 300,text_height,GREEN);
-//       gfx->setTextColor(BLACK);
-//       GFXPrintf(0,((i+2)*text_height),"Touch [%i] X:%i Y:%i size:%i ",i+1,ts.points[i].x,ts.points[i].y,ts.points[i].size);
-//       Screenpopulated[i]=true;
-//       }
-//     }
-//     return true;
-//   } else {
-//     if (debug) { // delete the debug line if touched not true
-//       for (i=0;i<16;i++){
-//           if (Screenpopulated[i] && (millis()>= LastTouch[i]+100))
-//              {Screenpopulated[i]=false;gfx->fillRect(0, (i+2)*text_height, 300,text_height,BLACK);}
-//              }}
-//     return false;
-//     }
-// }
+
 
 //*********** EEPROM functions *********
 void EEPROM_WRITE() {
