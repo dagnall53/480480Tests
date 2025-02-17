@@ -7,7 +7,8 @@ extern Arduino_ST7701_RGBPanel *gfx ;  // declare the gfx structure so I can use
 
 
 void keyboard(int type);
-void DrawKey(int x, int rows_down, int width, String text );
+void DrawKey(int Keysize, int x, int rows_down, int width, String text );
+
 bool KeyOver(int x, int y, char * Key,int type);
 bool XYinBox(int x,int y, int h,int v,int width,int height);
 
