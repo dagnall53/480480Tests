@@ -122,7 +122,7 @@ void setup() {
   //dataline(6,Default_Settings, "Default");
 
   //setup keyboard
-  gfx->setFont(&FreeMono18pt7b);    
+  gfx->setFont(&FreeMonoBold18pt7b);    
   keyboard(caps);  
   gfx->setFont(&FreeMono8pt7b);
 }
@@ -236,7 +236,7 @@ void Use_Keyboard(char* DATA, int sizeof_data) {
     if (!strcmp(KEY, "^")) {
       caps = caps + 1;
       if (caps > 2) { caps = 0; }  //NB strcmp returns 0 if NO Difference, else position of non match characters
-        gfx->setFont(&FreeMono18pt7b);  keyboard(caps);   gfx->setFont(&FreeMono8pt7b);
+        gfx->setFont(&FreeMonoBold18pt7b);  keyboard(caps);   gfx->setFont(&FreeMono8pt7b);
       KeyCommand = true;
     }
     if (!strcmp(KEY, "DEL")) {
