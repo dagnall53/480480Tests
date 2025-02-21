@@ -12,6 +12,8 @@ void DrawKey(int Keysize, int x, int rows_down, int width, String text );
 bool KeyOver(int x, int y, char * Key,int type);
 bool XYinBox(int x,int y, int h,int v,int width,int height);
 
+int KEYBOARD_Y(void);
+int KEYBOARD_X(void);
 
 String key(int x, int y, int type);
 

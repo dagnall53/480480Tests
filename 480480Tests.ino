@@ -24,53 +24,157 @@ TAMC_GT911 ts = TAMC_GT911(TOUCH_SDA, TOUCH_SCL, TOUCH_INT, TOUCH_RST, TOUCH_WID
 #include "fonts.h"
 
 //**   structures for my variables (for saving)
-struct MySettings {
-  int EpromKEY;  // to allow check for clean EEprom and no data stored change in the default will result in eeprom being reset
+struct MySettings {  //key,default page,ssid,PW,Displaypage, UDP,Mode,serial,Espnow,Listtext size
+  int EpromKEY;      // to allow check for clean EEprom and no data stored change in the default will result in eeprom being reset
+  int DisplayPage;   // start page after defaults (currently -100 to show fonts data)
+  char ssid[16];
+  char password[16];
   int UDP_PORT;
-  int Mode;
   bool UDP_ON;
   bool Serial_on;
   bool ESP_NOW_ON;
-  uint8_t ListTextSize;  // fontsize for listed text (2 is readable, 1 gives more lines)// all off
-  char ssid[16];
-  char password[16];
-  int DisplayPage;
+};
+MySettings Default_Settings = { 1, -100, "N2K0183-proto", "12345678", 2002, false, true, true };
+MySettings Saved_Settings;
+MySettings Current_Settings;
+struct Displaysettings {
+  bool keyboard, CurrentSettings;
+  bool NmeaDepth, nmeawind, nmeaspeed, GPS;
+};
+Displaysettings Display_default = { false, true, false, false, false, false };
+Displaysettings Display_Setting;
+
+struct BarChart {
+  int topleftx, toplefty, bottomrightx, bottomrighty, border, background, barcolour, value, rangemin, rangemax, visible;
 };
 
+
 struct TouchMemory {
+  int consecutive;
   unsigned long sampletime;
   uint8_t x;
   uint8_t y;
   uint8_t size;
+  int X3Swipe;
+  int Y3Swipe;
 };
+TouchMemory TouchData;
 
 
 
 
-MySettings Default_Settings = { 129, 2002, 1, false, true, true, 2, "N2K0183-proto", "12345678", 0 };
-MySettings Saved_Settings;
-MySettings Current_Settings;
 
 //*********** for keyboard*************
 #include "Keyboard.h"
 
 int caps = 0;
 
-int text_height = 16;  //default?
-int font_offset;
-//String text = "";
-enum swipe { none,
-             left,
-             right,
-             up,
-             down };
-bool SwipeLeft, SwipeRight, SwipeUp, SwipeDown;
+int text_height = 12;      //so we can get them if we change heights etc inside functions
+int text_offset = 12;      //offset is not equal to height, as subscripts print lower than 'height'
+int text_char_width = 12;  // useful for monotype? only NOT USED YET! Try tft.getTextBounds(string, x, y, &x1, &y1, &w, &h);
 
-/// various screens
-#define maxscreens 3  //screens 0 1 2 3
+void setFont(int font) {
+  /* Options: and max height and offset attribute of GFXGlyphs.
+//see Glyph for "/"! 
+ FreeMono8pt7b   10 and -15
+ FreeMono12pt7b  14 -15  
+ FreeMono18pt7b  21 -22
+ FreeMonoBold12pt7b  14, -16
+ FreeMonoBold18pt7b  21, -23
+ FreeSansBold10pt7b  24
+ FreeSansBold18pt7b  42
+ FreeSansBold24pt7b  56
 
 
+*/
 
+  switch (font) {
+    // set the heights and offset to print [ in boxes. Heights in pixels are NOT the point heights!
+    case 0:  // SMALL 8pt
+      gfx->setFont(&FreeMono8pt7b);
+      text_height = (FreeMono8pt7bGlyphs[0x3D].height) + 1;
+      text_offset = -(FreeMono8pt7bGlyphs[0x3D].yOffset);
+      //    text_height = 13; // note height =13 {9+4} +for superscript,  for subscripts  on pt to allow for subscripts?
+      //    text_offset = 10;// start print  down from top left
+      //text_char_width =  FreeMono8pt7bGlyphs[0x3D].width
+      text_char_width = 12;
+      break;
+    case 1:  // standard 12pt
+      gfx->setFont(&FreeMono12pt7b);
+      text_height = (FreeMono12pt7bGlyphs[0x3D].height) + 1;
+      text_offset = -(FreeMono12pt7bGlyphs[0x3D].yOffset);
+      // text_height=19;
+      // text_offset = 15;
+      text_char_width = 12;
+
+      break;
+    case 2:  //standard 18pt
+      gfx->setFont(&FreeMono18pt7b);
+      text_height = (FreeMono18pt7bGlyphs[0x3D].height) + 1;
+      text_offset = -(FreeMono18pt7bGlyphs[0x3D].yOffset);
+      //text_height=26;
+      //text_offset = 22;
+      text_char_width = 12;
+
+      break;
+    case 3:  //BOLD 12pt
+      gfx->setFont(&FreeMonoBold12pt7b);
+      text_height = (FreeMonoBold12pt7bGlyphs[0x3D].height) + 1;
+      text_offset = -(FreeMonoBold12pt7bGlyphs[0x3D].yOffset);
+      // text_height=22;
+      // text_offset = 16;
+      text_char_width = 12;
+
+      break;
+    case 4:  //BOLD 18 pt
+      gfx->setFont(&FreeMonoBold18pt7b);
+      text_height = (FreeMonoBold18pt7bGlyphs[0x3D].height) + 1;
+      text_offset = -(FreeMonoBold18pt7bGlyphs[0x3D].yOffset);
+      //text_height=31;
+      //text_offset = 23;
+      text_char_width = 12;
+
+      break;
+    case 5:  //Sans  12 pt
+      gfx->setFont(&FreeSansBold10pt7b);
+      //test
+      text_height = (FreeSansBold10pt7bGlyphs[0x3D].height) + 1;
+      text_offset = -(FreeSansBold10pt7bGlyphs[0x3D].yOffset);
+      // text_height=22;  //"( height+1
+      // text_offset = 16; //'/
+      text_char_width = 12;  // not used yet
+
+      break;
+    case 6:  //Sans  18 pt
+      gfx->setFont(&FreeSansBold18pt7b);
+      //test FreeMono8pt7bGlyphs[0x3D].height, FreeMono8pt7bGlyphs[0x3D].yOffset
+      text_height = (FreeSansBold18pt7bGlyphs[0x3D].height) + 1;
+      text_offset = -(FreeSansBold18pt7bGlyphs[0x3D].yOffset);
+      //  text_height=34;  //max height in glyph [ +1
+      //  text_offset = 24; //  Abs(yoffset) of /
+      text_char_width = 12;  // not used yet
+      break;
+    case 7:  //Sans  24 pt
+      gfx->setFont(&FreeSansBold24pt7b);
+      text_height = (FreeSansBold24pt7bGlyphs[0x3D].height) + 1;
+      text_offset = -(FreeSansBold24pt7bGlyphs[0x3D].yOffset);
+      // text_height=44;  //Based on ] character max height in glyph +1
+      // text_offset = 33; //  Abs(yoffset) of
+      text_char_width = 12;  // not used yet
+      break;
+    default:
+      gfx->setFont(&FreeMono8pt7b);
+      text_height = 13;
+      text_offset = 10;
+      text_char_width = 12;
+
+      break;
+  }
+  gfx->setTextSize(1);
+  // text_height = text_height;
+  // text_offset = text_offset;
+  // text_char_width = text_char_width;
+}
 
 
 void setup() {
@@ -93,11 +197,7 @@ void setup() {
   pinMode(GFX_BL, OUTPUT);
   digitalWrite(GFX_BL, HIGH);
 #endif
-  // gfx->setTextColor(WHITE);
-  // gfx->setTextSize(4);
-  // gfx->setCursor(180, 50);
-  // gfx->println(F("START "));
-  delay(500);     // .5 seconds
+
   EEPROM_READ();  // setup and read saved variables into Saved_Settings
 
   Current_Settings = Saved_Settings;
@@ -106,26 +206,155 @@ void setup() {
     EEPROM_WRITE();
   }
 
-  gfx->setTextColor(WHITE, BLACK);
-  //gfx->setFont(FreeSansBold10pt7b is 24 pixel?
-  //gfx->setFont(FreeMono8pt7b is 16 ?
-  //gfx->setFont(FreeSansBold24pt7b is 56?
-  // ADA fruit foints FreeSansBold12pt7b  9,12,18,24 
-  gfx->setFont(&FreeMono8pt7b);
+  setFont(0);
 
-//  gfx->setFont(&FreeSansBold24pt7b);
-  text_height = 16;
-  font_offset = text_height - 2;  // lift slightly?
-                                  /// can this be set from fonts??
+  gfx->setTextColor(WHITE);
+  gfx->setTextSize(2);
+  gfx->setCursor(90, 140);
+
+  keyboard(-1);  //reset keyboard display update settings
   dataline(1, Current_Settings, "Current");
-  //dataline(4,Saved_Settings, "Saved");
-  //dataline(6,Default_Settings, "Default");
-
-  //setup keyboard
-  gfx->setFont(&FreeMonoBold18pt7b);    
-  keyboard(caps);  
-  gfx->setFont(&FreeMono8pt7b);
+  gfx->println(F("***START Screen***"));
+  delay(500);  // .5 seconds
 }
+
+void loop() {
+  int unused;
+  static int swipe;
+  //DisplayCheck(false);
+  //EventTiming("START");
+  TouchSample(TouchData);
+  Display(Current_Settings.DisplayPage);  //EventTiming("STOP");
+  //EventTiming(" loop time touch sample display");
+  //Use_Keyboard(Current_Settings.password,sizeof(Current_Settings.password));
+}
+
+
+void TouchCrosshair(int size) {
+  TouchCrosshair(size, WHITE);
+}
+void TouchCrosshair(int size, uint16_t colour) {
+  gfx->drawFastVLine(ts.points[0].x, ts.points[0].y - size, 2 * size, colour);
+  gfx->drawFastHLine(ts.points[0].x - size, ts.points[0].y, 2 * size, colour);
+}
+
+
+void Display(int page) {
+  static int LastPageselected;
+  static int font;
+  static int SwipeTestLR, SwipeTestUD;
+  static bool RunSetup;
+  static unsigned int slowdown;
+
+  if (page != LastPageselected) { RunSetup = true; }
+
+  switch (page) {
+    case -100:  //a test fonts screen
+      if (RunSetup) {
+        gfx->fillScreen(BLACK);
+        gfx->setTextColor(WHITE);
+        font = 0;
+        SwipeTestLR = 0;
+        SwipeTestUD = 0;
+        setFont(font);
+        GFXBoxPrintf(0, 250, 3, "-Top page- SETUP- ");
+      }
+
+      if (millis() >= slowdown + 2000) {
+        slowdown = millis();
+        // font = font + 1;
+        gfx->fillScreen(BLACK);
+        GFXBoxPrintf(0, 350, 3, "periodic update");
+        // Serial.printf(" Setting Font %i  MY data: height<%i> offset<%i> \n", font, text_height, text_offset);
+        //  //
+        //   if (font >= 9) { font = 0; }
+        //   setFont(font);
+      }
+      //if (ts.isTouched) {
+      //   TouchCrosshair(20);
+      //}
+      if (Swipe(TouchData, true, SwipeTestLR, 0, 255, true, true)) { Serial.printf(" LR updated %i \n", SwipeTestLR); };  // swipe page using (current) TouchData information with LR (true) swipe
+      GFXBoxPrintf(0, 0, 1, "SwipeTestLR (%i)", SwipeTestLR);
+      if (Swipe(TouchData, false, SwipeTestUD, 0, 255, true, true)) { Serial.printf("    UDupdated %i \n", SwipeTestUD); };  // swipe page using (current) TouchData information with LR (true) swipe
+      GFXBoxPrintf(0, 480 - text_height, 1, "SwipeTestUD (%i)", SwipeTestUD);
+
+      break;
+    case -1:
+      if (RunSetup) {
+        gfx->fillScreen(BLACK);
+        gfx->setTextColor(WHITE, BLACK);
+        gfx->setTextSize(1);
+        gfx->setCursor(180, 180);
+      }
+      setFont(2);
+      dataline(1, Current_Settings, "Current");
+      gfx->println(F("SETTINGS PAGEs -  swipe 2,4 "));
+      setFont(0);
+      Swipe(TouchData, true, Current_Settings.DisplayPage, 2, 4, true, true);  // swipe page using (current) TouchData information with LR (true) swipe
+
+      break;
+    case 0:
+      if (RunSetup) {
+        gfx->fillScreen(BLACK);
+        gfx->setTextColor(WHITE);
+        setFont(0);
+        GFXBoxPrintf(0, 50, 3, "-Top page-");
+      }
+      if (millis() > slowdown + 10000) {
+        slowdown = millis();
+        dataline(1, Current_Settings, "Current");
+      }
+      Swipe(TouchData, true, Current_Settings.DisplayPage, 0, 4, true, true);  // swipe page using (current) TouchData information with LR (true) swipe
+      if (ts.isTouched) {
+        TouchCrosshair(20);
+      }
+
+      break;
+    case 1:
+      if (RunSetup) {
+        gfx->fillScreen(BLUE);
+        gfx->setTextColor(WHITE);
+        setFont(0);
+        GFXBoxPrintf(0, 140, 2, "P1 Testing Set Password");
+        keyboard(-1);  //reset
+      }
+      if (millis() > slowdown + 1000) {
+        slowdown = millis();
+        dataline(1, Current_Settings, "Current");
+      }
+
+      //setup keyboard if not showing
+      keyboard(caps);
+      Use_Keyboard(Current_Settings.password, sizeof(Current_Settings.password));
+      break;
+    case 2:
+      if (RunSetup) {
+        gfx->fillScreen(BLUE);
+        gfx->setTextColor(WHITE);
+        GFXBoxPrintf(0, 140, 2, "P2 Set ssid");
+        keyboard(-1);  //reset
+      }
+      if (millis() > slowdown + 1000) {
+        slowdown = millis();
+        dataline(1, Current_Settings, "Current");
+      }
+
+
+      keyboard(caps);
+      Use_Keyboard(Current_Settings.ssid, sizeof(Current_Settings.ssid));
+      break;
+
+    default:
+      if (RunSetup) { gfx->fillScreen(BLACK); }
+
+      gfx->setCursor(180, 180);
+      GFXBoxPrintf(50, 140, 2, "* Page %i", page);
+      break;
+  }
+  LastPageselected = page;
+  RunSetup = false;
+}
+
 
 
 
@@ -196,39 +425,103 @@ void DisplayCheck(bool invertcheck) {
   }
 }
 
-bool actionrequired = false;
-String PressedKey;
 
-void loop() {
-  int unused;
-  static int swipe;
-  DisplayCheck(false);
 
-  ts.read();
-  Use_Keyboard(Current_Settings.password, sizeof(Current_Settings.password));
-  Touchswipe(Current_Settings.DisplayPage, 0, 16, unused,0,16, true);
-  //TouchValueShow(80,true);
-}
 
 
 
 //*********** Touch stuff ****************
+
+int swipedir(int sampleA, int sampleB) {
+  int tristate;
+  tristate = 0;
+  if (abs(sampleB - sampleA) >= 5) {
+    if ((sampleB - sampleA) > 0) {
+      tristate = 1;
+    } else {
+      tristate = -1;
+    }
+  }
+  return tristate;
+}
+
+void TouchSample(TouchMemory& _Touch) {
+  static TouchMemory TouchStore[7];  // 0..5 use  last  touches to evaluate average movements over 3 samples
+  static int consecutive;
+  static unsigned long time_of_sampling;
+  unsigned long InterSamplePeriod;
+  ts.read();
+  if (ts.isTouched) {
+    InterSamplePeriod = millis() - time_of_sampling;
+    time_of_sampling = millis();
+    TouchCrosshair(20, WHITE);  // view to spot discrepancies?  //update / Cycle_Round local memory
+                                // GFXBoxPrintf(0, 50, 480, text_height, 1, 1, WHITE, BLACK, BLACK,
+                                //Serial.printf("isp(%i)TouchSample time:%i last(%i) previous[%i]\n", InterSamplePeriod, millis(), TouchStore[1].sampletime, TouchStore[2].sampletime);
+
+    TouchStore[0].sampletime = time_of_sampling;
+    TouchStore[0].x = ts.points[0].x;
+    TouchStore[0].y = ts.points[0].y;
+    TouchStore[0].size = ts.points[0].size;
+
+    if (InterSamplePeriod <= 50) { // dervived attributes from movement 
+      TouchCrosshair(20, RED);
+      consecutive = consecutive + 1;
+      TouchStore[0].consecutive = consecutive;
+      //*** Swiping ?***
+      TouchStore[0].X3Swipe = 0;
+      TouchStore[0].Y3Swipe = 0;  // (xdiff <= 0) ? 1 : -1;  //three state conditions
+      if (consecutive >= 5) {     // TEST at >= 5 same from 5 to 3 as from 3 to current?
+        TouchCrosshair(20, GREEN);
+        if (swipedir(TouchStore[5].x, TouchStore[3].x) == swipedir(TouchStore[3].x, TouchStore[0].x))
+          TouchStore[0].X3Swipe = swipedir(TouchStore[5].x, TouchStore[3].x);
+        if (swipedir(TouchStore[5].y, TouchStore[3].y) == swipedir(TouchStore[3].y, TouchStore[0].y))
+          TouchStore[0].Y3Swipe = swipedir(TouchStore[3].y, TouchStore[3].y);
+      }
+
+      // Serial.printf("Touch delta:%ims consec(%i) xsent:[%i] ysent:[%i]\n",
+      //               InterSamplePeriod, consecutive, TouchStore[0].X3Swipe, TouchStore[0].Y3Swipe);
+
+      _Touch = TouchStore[0];
+
+      for (int i = 5; i >= 0; i--) {
+        TouchStore[i + 1] = TouchStore[i];
+        // Serial.printf(" replacing %i with %i\n", i + 1, i);
+      }
+
+    } else {  // not adequately consecutively timed!
+      TouchCrosshair(20, BLUE);
+      consecutive = 0; _Touch.consecutive=0;
+    }
+  }
+}
+
+
 void Use_Keyboard(char* DATA, int sizeof_data) {
-  static unsigned long lastkeypressed;
+  static unsigned long lastkeypressed, last_Displayed;
   static bool KeyPressUsed;
   static bool KeyCommand;
   static bool VariableChanged = false;
   char KEY[6];
   static char Local_var[30];
-  if (!VariableChanged) {
+
+  int result_positionX, result_positionY;
+  result_positionX = KEYBOARD_X();
+  result_positionY = KEYBOARD_Y() - (3 * text_height) - 5;
+
+  if ((!VariableChanged) || (millis() > last_Displayed)) {
     strcpy(Local_var, DATA);
-    WriteinBox(0, 200, 2, Local_var);
+    WriteinBox(result_positionX, result_positionY, 2, Local_var);
     VariableChanged = true;
-  }  // get a local copy to modify it
-     //   ts.read();
+    last_Displayed = millis() + 500;
+  }
   int st;
-  //Serial.printf(" Pressure test %i \n",ts.points[0].size);
-  if (!KeyPressUsed && (ts.isTouched) && (ts.points[0].size > 35) && (KeyOver(ts.points[0].x, ts.points[0].y, KEY, caps))) {  //Serial.printf(" Keyboard check inputsizeof<%i>   sizeof_here(%i)   currentlen<%i>\n",sizeof_data,sizeof(DATA),strlen(Local_var));
+  if ((ts.isTouched)) {
+    st = KeyOver(ts.points[0].x, ts.points[0].y, KEY, caps);
+    //Serial.printf(" Pressure test %i  KEYchr<%i> Bool <%i>\n",ts.points[0].size,ts.points[0].x, ts.points[0].y,KEY,st );
+  }
+
+  if (!KeyPressUsed && (ts.isTouched) && (ts.points[0].size > 35) && (KeyOver(ts.points[0].x, ts.points[0].y, KEY, caps))) {
+    Serial.printf(" Keyboard check inputsizeof<%i>   sizeof_here *data(%i)   currentlen<%i>\n", sizeof_data, sizeof(*DATA), strlen(Local_var));
     KeyPressUsed = true;
     lastkeypressed = millis();
     KeyCommand = false;
@@ -236,7 +529,13 @@ void Use_Keyboard(char* DATA, int sizeof_data) {
     if (!strcmp(KEY, "^")) {
       caps = caps + 1;
       if (caps > 2) { caps = 0; }  //NB strcmp returns 0 if NO Difference, else position of non match characters
-        gfx->setFont(&FreeMonoBold18pt7b);  keyboard(caps);   gfx->setFont(&FreeMono8pt7b);
+                                   ///gfx->setFont(&FreeMonoBold18pt7b);
+                                   //text_height=18; //(see the name!!)
+      //font_offset = text_height - 2;  // lift slightly?
+      keyboard(caps);
+      ///gfx->setFont(&FreeMono8pt7b);
+      //text_height=8; //(see the name!!)
+      //font_offset = text_height - 2;  // lift slightly?
       KeyCommand = true;
     }
     if (!strcmp(KEY, "DEL")) {
@@ -249,101 +548,87 @@ void Use_Keyboard(char* DATA, int sizeof_data) {
     }
     if (!strcmp(KEY, "rst")) {
       strcpy(Local_var, DATA);
-      WriteinBox(0, 200, 2, Local_var);
+      WriteinBox(result_positionX, result_positionY, 2, Local_var);
       KeyCommand = true;
     }
     if (!strcmp(KEY, "ENT")) {
       strcpy(DATA, Local_var);
       Serial.printf("Updated was %s is  %s", DATA, Local_var);
-      strncpy(DATA, Local_var, sizeof_data);  // limit so we cannot overwrite the original array size
+      strncpy(DATA, Local_var, sizeof_data);  // limit_size so we cannot overwrite the original array size
       KeyCommand = true;
       VariableChanged = false;
       EEPROM_WRITE;
+      //Current_Settings.DisplayPage=0; //Reset to page 0
     }
     if (!KeyCommand) {  //Serial.printf(" adding %s on end of variable<%s>\n",KEY,Local_var);
       strcat(Local_var, KEY);
     }
-    WriteinBox(0, 200, 2, Local_var);
+    WriteinBox(result_positionX, result_positionY, 2, Local_var);
   }
   if (!ts.isTouched && KeyPressUsed && (millis() > (250 + lastkeypressed))) { KeyPressUsed = false; }
 }
 
-
-bool ConsistentlyMoving(TouchMemory previous, TouchMemory last, TouchMemory current,int &Xchange,int &Ychange){
-  bool PrintReturn;
-  int xpldiff,xlcdiff,xvel,ypldiff,ylcdiff,yvel,xdiff, ydiff;
-  unsigned long Timespan;
-  PrintReturn=false;
-  Xchange =0;
-  Ychange =0;
-  xpldiff= previous.x - last.x;
-  xlcdiff= last.x - current.x;
-  ypldiff= previous.y - last.y;
-  ylcdiff= last.y - current.y;
-  xdiff=previous.x -current.x;
-  ydiff=previous.y -current.y;
-  Timespan= ((current.sampletime-previous.sampletime)); // how similar are the time intervals 3 samples shouldbe at ~30-50ms intervals?
-  xvel=(xpldiff-xlcdiff);  //how smooth was the movement 
-  yvel=(ypldiff-ylcdiff);  //how smooth was the movement 
- // Serial.printf(" Time interval check. time span %i  ",Timespan);
-  //Serial.printf(" X similarity %i  Y similarity %i \n",abs(xvel),   abs(yvel));
-  if ((Timespan<=150) && ((abs(xvel) >= 20)||(abs(yvel) >=20))){  // consistent movement over three samples. In either of directions
-  if(abs(xvel) >=5){Xchange =(xdiff<=0)?1:-1;   //swipe 
- // Serial.print((xlcdiff<=0)?"Right ":"Left "); 
- PrintReturn=true;
+bool Swipe(TouchMemory _touch, bool LR, int& variable, int varmin, int varmax, bool Cycle_Round, bool TopScreenOnly) {
+  static bool LRSwipeUpdateSent;
+  static unsigned long LRLastSwipeSent;
+  static bool UDSwipeUpdateSent;
+  static unsigned long UDLastSwipeSent;
+  int increment;
+  if (LR) {  // do not confuse LR and UD readings! this is just test stuff to help debug the ergonomics
+             // GFXBoxPrintf(h,v,width,height,textsize,bordersize,backgroundcol,textcol,bordercol, const char* fmt, ...) {  //complete object type suitable for holding the information needed by the macros va_start, va_copy, va_arg, and va_end.
+    GFXBoxPrintf(0, 100, 480, text_height, 1, 1, WHITE, BLACK, GREEN, "(%i)swipe:%i consec(%i) sent:[%i]", variable, _touch.X3Swipe, _touch.consecutive, LRSwipeUpdateSent);
   }
-  if (abs(yvel) >=5){Ychange =(ydiff<=0)?1:-1; 
- //   Serial.print((ylcdiff<=0)?" Down ":" Up "); 
- PrintReturn=true;
+  // else {GFXBoxPrintf(0,100,480,text_height,1,1,RED,BLACK,GREEN, "(%i)swipe:%i consec(%i)sent:[%i]",variable,touch.X3Swipe,touch.consecutive,LRSwipeUpdateSent);}
+  // }
+  if (TopScreenOnly && (_touch.y >= 180)) { return false; }
+
+  if (LR) {
+    if ((!ts.isTouched) && (millis() >= (LRLastSwipeSent + 500))) {
+      _touch.consecutive = 0;
+      LRSwipeUpdateSent = false;  // RESET (after delay) on finger lift for next swipe;
+      //LRLastSwipeSent = millis();  // but only after 500ms delay
+      return false;
     }
-  if (PrintReturn){  // only change if one or the other swipes are sensed 
- //   Serial.println("");
-  return true;}
-  }
-  return false;
-}
-
-bool Touchswipe(int& LR_variable, int LRmin, int LRmax, int& UD_variable, int UDmin, int UDmax,bool limit) {    //if limit limits to top of screen // returns 0 (none)int with  1=left -1=right +2=up -2=down
-  static bool SwipeUpdateSent;                                         // only allow one swipe .. reset on finger lifted
-  static TouchMemory Lastreading,Currentreading,PrevioustoLast;  // save last three touches
-  static unsigned long minsamplerate;
-  static unsigned long lastswipeSent;
-  unsigned long sampleinterval;
-  int LRvar_increment, UDvar_increment;
-  bool PrintReturn;
-  PrintReturn=false;
-  LRvar_increment = 0;
-  if (limit && (ts.points[0].y >= 180)) { return false; }
-  if (ts.isTouched) {
-    if ((!SwipeUpdateSent) && (millis() >= (minsamplerate + 30))) { // at least 30ms between samples
-      Currentreading.sampletime = millis(); 
-      Currentreading.x = ts.points[0].x;
-      Currentreading.y = ts.points[0].y;
-      Currentreading.size = ts.points[0].size;
-      //NB does not roll around! 
-      if (ConsistentlyMoving(PrevioustoLast,Lastreading,Currentreading,LRvar_increment,UDvar_increment)){
-           if (((LR_variable + LRvar_increment) >=LRmin) && ((LR_variable + LRvar_increment) <= LRmax)) {
-             LR_variable = LR_variable + LRvar_increment;
-             // if (LRvar_increment!=0) {Serial.print((LRvar_increment<=0)?" LR decrement ":" LR increment "); PrintReturn=true;}
-             }
-           if (((UD_variable + UDvar_increment) >=UDmin) && ((UD_variable + UDvar_increment) <= UDmax)) {
-             UD_variable = UD_variable + UDvar_increment;
-              //if (UDvar_increment!=0) {Serial.print((UDvar_increment<=0)?" UD decrement ":" UD increment "); PrintReturn=true;}
-             } 
-            SwipeUpdateSent=true; lastswipeSent=millis();
-          //if (PrintReturn) {Serial.println(" end swipe actions");}
+    // get 'direction +-1 or zero
+    if (ts.isTouched && (_touch.consecutive >= 5)) { increment = _touch.X3Swipe; }
+    if ((abs(increment) != 0) && (!LRSwipeUpdateSent)) {
+      if (Cycle_Round) {
+        variable = variable + increment;
+        if ((variable + increment) > varmax) { variable = varmin; }
+        if ((variable + increment) < varmin) { variable = varmax; }
+      } else {
+        if (((variable + increment) >= varmin) && ((variable + increment) <= varmax)) {
+          variable = variable + increment;
+        }
       }
-      PrevioustoLast = Lastreading;
-      Lastreading = Currentreading;
-      minsamplerate=millis();
-      // memory updated..
-    }     // rate limited sample  interval
-  }       //touched
-  //Do not send sipe results at more than 4hz 
-    if ((SwipeUpdateSent) && (millis() >= (lastswipeSent + 250))) {
-      SwipeUpdateSent = false;
+      LRSwipeUpdateSent = true;
+      LRLastSwipeSent = millis();
+      return true;
     }
-
+  } else {
+    if ((!ts.isTouched) && (millis() >= (UDLastSwipeSent + 500))) {
+      UDSwipeUpdateSent = false;  // RESET on finger lift for next swipe;
+      //UDLastSwipeSent = millis();  // but only after 500ms delay
+      return false;
+    }
+    // get 'direction +-1 or zero
+    if (ts.isTouched && (_touch.consecutive >= 5)) { increment = -_touch.Y3Swipe; }
+    if ((abs(increment) != 0) && (!UDSwipeUpdateSent)) {
+      if (Cycle_Round) {
+        variable = variable + increment;
+        if ((variable + increment) > varmax) { variable = varmin; }
+        if ((variable + increment) < varmin) { variable = varmax; }
+      } else {
+        if (((variable + increment) >= varmin) && ((variable + increment) <= varmax)) {
+          variable = variable + increment;
+        }
+      }
+      UDSwipeUpdateSent = true;
+      UDLastSwipeSent = millis();
+      return true;
+    }
+    return false;
+  }
   return false;
 }
 
@@ -379,17 +664,14 @@ void EEPROM_READ() {
 
 //************** display housekeeping ************
 void ScreenShow(int LINE, MySettings A, String Text) {
-  gfx->setTextSize(1);
-  gfx->fillRect(0, (LINE)*text_height, 480, (LINE + 1) * text_height, RED);
-  gfx->setTextColor(WHITE);
-  GFXPrintf(0, (LINE)*text_height, "%s: Mode<%d> Ser<%d> UDP<%d> UDP<%d>  ESP<%d> ", Text, A.Mode, A.Serial_on, A.UDP_PORT, A.UDP_ON, A.ESP_NOW_ON);
-  gfx->fillRect(0, (LINE + 1) * text_height, 480, (LINE + 2) * text_height, RED);
-  GFXPrintf(0, (LINE + 1) * text_height, "Page[%i] SSID<%s> PWD<%s>", A.DisplayPage, A.ssid, A.password);
+  //gfx->setTextSize(1);
+  GFXBoxPrintf(0, 0, 1, "%s: Ser<%d> UDP<%d> UDP<%d> ESP<%d>", Text, A.Serial_on, A.UDP_PORT, A.UDP_ON, A.ESP_NOW_ON);
+  GFXBoxPrintf(0, text_height, 1, "Page[%i] SSID<%s> PWD<%s>", A.DisplayPage, A.ssid, A.password);
 }
 
 void dataline(int line, MySettings A, String Text) {
   ScreenShow(line, A, Text);
-  Serial.printf("%d Dataline display %s: Mode<%d> Ser<%d> UDPPORT<%d> UDP<%d>  ESP<%d> \n ", A.EpromKEY, Text, A.Mode, A.Serial_on, A.UDP_PORT, A.UDP_ON, A.ESP_NOW_ON);
+  Serial.printf("%d Dataline display %s: Ser<%d> UDPPORT<%d> UDP<%d>  ESP<%d> \n ", A.EpromKEY, Text, A.Serial_on, A.UDP_PORT, A.UDP_ON, A.ESP_NOW_ON);
   Serial.print("SSID <");
   Serial.print(A.ssid);
   Serial.print(">  Password <");
@@ -404,26 +686,24 @@ boolean CompStruct(MySettings A, MySettings B) {  // does not check ssid and pas
   if (A.UDP_ON == B.UDP_ON) { same = true; }
   if (A.ESP_NOW_ON == B.ESP_NOW_ON) { same = true; }
   if (A.Serial_on == B.Serial_on) { same = true; }
-  if (A.Mode == B.Mode) { same = true; }
-  if (A.ListTextSize == B.ListTextSize) { same = true; }
+
   return same;
 }
-void WriteinBox(int h, int v, int size, const char* TEXT) {  //Write text in filled box at h,v (using fontoffset to use TOP LEFT of text convention)
-  gfx->fillRect(h, v, 480, text_height * size, WHITE);
-  gfx->setTextColor(BLACK);
-  gfx->setTextSize(size);
-  Writeat(h, v, size, TEXT);
-  gfx->setTextSize(1);
-}
 
-
-
-void Writeat(int h, int v, int size, const char* text) {     //Write text at h,v (using fontoffset to use TOP LEFT of text convention)
-  gfx->setCursor(h, v + (size * font_offset) - (3 * size));  // offset up/down for GFXFONTS that start at Bottom left. Standard fonts start at TOP LEFT
+void Writeat(int h, int v, int size, const char* text) {  //Write text at h,v (using fontoffset to use TOP LEFT of text convention)
+  gfx->setCursor(h, v + (text_offset * size));            // offset up/down for GFXFONTS that start at Bottom left. Standard fonts start at TOP LEFT
   gfx->println(text);
+  gfx->setTextSize(1);
 }
 void Writeat(int h, int v, const char* text) {
   Writeat(h, v, 1, text);
+}
+
+void WriteinBox(int h, int v, int size, const char* TEXT) {  //Write text in filled box of text height at h,v (using fontoffset to use TOP LEFT of text convention)
+  gfx->fillRect(h, v, 480, text_height * size, WHITE);
+  gfx->setTextColor(BLACK);
+  gfx->setTextSize(size);
+  Writeat(h, v, size, TEXT);  // text offset is dealt with in write at
 }
 
 void GFXBoxPrintf(int h, int v, const char* fmt, ...) {  //complete object type suitable for holding the information needed by the macros va_start, va_copy, va_arg, and va_end.
@@ -434,6 +714,15 @@ void GFXBoxPrintf(int h, int v, const char* fmt, ...) {  //complete object type 
   va_end(args);
   int len = strlen(msg);
   WriteinBox(h, v, 1, msg);
+}
+void GFXBoxPrintf(int h, int v, int size, const char* fmt, ...) {  //complete object type suitable for holding the information needed by the macros va_start, va_copy, va_arg, and va_end.
+  static char msg[300] = { '\0' };                                 // used in message buildup
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(msg, 128, fmt, args);
+  va_end(args);
+  int len = strlen(msg);
+  WriteinBox(h, v, size, msg);  // includes size
 }
 
 
@@ -447,6 +736,31 @@ void GFXPrintf(int h, int v, const char* fmt, ...) {  //complete object type sui
   int len = strlen(msg);
   Writeat(h, v, msg);
 }
+
+// more general versions including box width size Box draws border OUTside topleft position by 'bordersize'
+
+void WriteinBox(int h, int v, int width, int height, int textsize, int bordersize, uint16_t backgroundcol, uint16_t textcol, uint16_t bordercol, const char* TEXT) {  //Write text in filled box of text height at h,v (using fontoffset to use TOP LEFT of text convention)
+  gfx->fillRect(h - bordersize, v - bordersize, width + (2 * bordersize), height + (2 * bordersize), bordercol);
+  gfx->fillRect(h, v, width, height, backgroundcol);
+  gfx->setTextColor(textcol);
+  gfx->setTextSize(textsize);
+  gfx->setCursor(h, v + (text_offset * textsize));  // offset up/down by OFFSET (!) for GFXFONTS that start at Bottom left. Standard fonts start at TOP LEFT
+  gfx->println(TEXT);
+  //reset font ...
+  gfx->setTextSize(1);
+}
+//complete object type suitable for holding the information needed by the macros va_start, va_copy, va_arg, and va_end.
+void GFXBoxPrintf(int h, int v, int width, int height, int textsize, int bordersize, uint16_t backgroundcol, uint16_t textcol, uint16_t bordercol, const char* fmt, ...) {  //Print in a box.(h,v,width,height,textsize,bordersize,backgroundcol,textcol,bordercol, const char* fmt, ...)
+  static char msg[300] = { '\0' };                                                                                                                                          // used in message buildup
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(msg, 128, fmt, args);
+  va_end(args);
+  int len = strlen(msg);
+  WriteinBox(h, v, width, height, textsize, bordersize, backgroundcol, textcol, bordercol, msg);
+}
+
+
 
 
 
