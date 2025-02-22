@@ -9,6 +9,7 @@ From scratch build!
 //select pin definitions for installed GFX version (test with 1.5.3 and 1.3.1)
 #include "GUITIONESP32-S3-4848S040_GFX_131.h"
 
+// swipe function needs steady slow movement 
 /*******************************************************************************
  * End of Arduino_GFX setting
  ******************************************************************************/
