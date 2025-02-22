@@ -11,7 +11,7 @@ From scratch build!
 
 // swipe function needs steady slow movement 
 /*******************************************************************************
- * End of Arduino_GFX setting
+ * End of Arduino_GFX setting  - 
  ******************************************************************************/
 #include <TAMC_GT911.h>
 #define TOUCH_ROTATION ROTATION_NORMAL
