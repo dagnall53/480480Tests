@@ -60,7 +60,7 @@ struct TouchMemory {
 };
 TouchMemory TouchData;
 
-
+int _null, _temp;  //null pointers
 
 
 
@@ -178,6 +178,8 @@ void setFont(int font) {
 
 
 void setup() {
+  _null = 0;
+  _temp = 0;
   Serial.begin(115200);
   ts.begin();
   ts.setRotation(ROTATION_INVERTED);
@@ -223,7 +225,8 @@ void loop() {
   static int swipe;
   //DisplayCheck(false);
   //EventTiming("START");
-  TouchSample(TouchData);
+  ts.read();
+  //TouchSample(TouchData);
   Display(Current_Settings.DisplayPage);  //EventTiming("STOP");
   //EventTiming(" loop time touch sample display");
   //Use_Keyboard(Current_Settings.password,sizeof(Current_Settings.password));
@@ -260,23 +263,18 @@ void Display(int page) {
         GFXBoxPrintf(0, 250, 3, "-Top page- SETUP- ");
       }
 
-      if (millis() >= slowdown + 2000) {
+      if (millis() >= slowdown + 10000) {
         slowdown = millis();
         // font = font + 1;
         gfx->fillScreen(BLACK);
-        GFXBoxPrintf(0, 350, 3, "periodic update");
-        // Serial.printf(" Setting Font %i  MY data: height<%i> offset<%i> \n", font, text_height, text_offset);
-        //  //
-        //   if (font >= 9) { font = 0; }
-        //   setFont(font);
+        GFXBoxPrintf(0, 50, 2, "Periodic blank ");
       }
-      //if (ts.isTouched) {
-      //   TouchCrosshair(20);
-      //}
-      if (Swipe(TouchData, true, SwipeTestLR, 0, 255, true, true)) { Serial.printf(" LR updated %i \n", SwipeTestLR); };  // swipe page using (current) TouchData information with LR (true) swipe
-      GFXBoxPrintf(0, 0, 1, "SwipeTestLR (%i)", SwipeTestLR);
-      if (Swipe(TouchData, false, SwipeTestUD, 0, 255, true, true)) { Serial.printf("    UDupdated %i \n", SwipeTestUD); };  // swipe page using (current) TouchData information with LR (true) swipe
-      GFXBoxPrintf(0, 480 - text_height, 1, "SwipeTestUD (%i)", SwipeTestUD);
+
+      if (Swipe2(SwipeTestLR, 1, 10, true, SwipeTestUD, 0, 10, false, false)) {
+        Serial.printf(" LR updated %i UD updated %i \n", SwipeTestLR, SwipeTestUD);  // swipe page using (current) TouchData information with LR (true) swipe
+        GFXBoxPrintf(0, 0, 1, "SwipeTestLR (%i)", SwipeTestLR);
+        GFXBoxPrintf(0, 480 - text_height, 1, "SwipeTestUD (%i)", SwipeTestUD);
+      };
 
       break;
     case -1:
@@ -290,7 +288,7 @@ void Display(int page) {
       dataline(1, Current_Settings, "Current");
       gfx->println(F("SETTINGS PAGEs -  swipe 2,4 "));
       setFont(0);
-      Swipe(TouchData, true, Current_Settings.DisplayPage, 2, 4, true, true);  // swipe page using (current) TouchData information with LR (true) swipe
+      // Swipe (TouchData, Current_Settings.DisplayPage, 2, 4, true, true);  // swipe page using (current) TouchData information with LR (true) swipe
 
       break;
     case 0:
@@ -304,7 +302,7 @@ void Display(int page) {
         slowdown = millis();
         dataline(1, Current_Settings, "Current");
       }
-      Swipe(TouchData, true, Current_Settings.DisplayPage, 0, 4, true, true);  // swipe page using (current) TouchData information with LR (true) swipe
+      // Swipe(TouchData, Current_Settings.DisplayPage, 0, 4, true, true);  // swipe page using (current) TouchData information with LR (true) swipe
       if (ts.isTouched) {
         TouchCrosshair(20);
       }
@@ -432,10 +430,10 @@ void DisplayCheck(bool invertcheck) {
 
 //*********** Touch stuff ****************
 
-int swipedir(int sampleA, int sampleB) {
+int swipedir(int sampleA, int sampleB, int range) {
   int tristate;
   tristate = 0;
-  if (abs(sampleB - sampleA) >= 5) {
+  if (SwipedFarEnough(sampleA, sampleB, range)) {
     if ((sampleB - sampleA) > 0) {
       tristate = 1;
     } else {
@@ -445,56 +443,18 @@ int swipedir(int sampleA, int sampleB) {
   return tristate;
 }
 
-void TouchSample(TouchMemory& _Touch) {
-  static TouchMemory TouchStore[7];  // 0..5 use  last  touches to evaluate average movements over 3 samples
-  static int consecutive;
-  static unsigned long time_of_sampling;
-  unsigned long InterSamplePeriod;
-  ts.read();
-  if (ts.isTouched) {
-    InterSamplePeriod = millis() - time_of_sampling;
-    time_of_sampling = millis();
-    TouchCrosshair(20, WHITE);  // view to spot discrepancies?  //update / Cycle_Round local memory
-                                // GFXBoxPrintf(0, 50, 480, text_height, 1, 1, WHITE, BLACK, BLACK,
-                                //Serial.printf("isp(%i)TouchSample time:%i last(%i) previous[%i]\n", InterSamplePeriod, millis(), TouchStore[1].sampletime, TouchStore[2].sampletime);
-
-    TouchStore[0].sampletime = time_of_sampling;
-    TouchStore[0].x = ts.points[0].x;
-    TouchStore[0].y = ts.points[0].y;
-    TouchStore[0].size = ts.points[0].size;
-
-    if (InterSamplePeriod <= 50) { // dervived attributes from movement 
-      TouchCrosshair(20, RED);
-      consecutive = consecutive + 1;
-      TouchStore[0].consecutive = consecutive;
-      //*** Swiping ?***
-      TouchStore[0].X3Swipe = 0;
-      TouchStore[0].Y3Swipe = 0;  // (xdiff <= 0) ? 1 : -1;  //three state conditions
-      if (consecutive >= 5) {     // TEST at >= 5 same from 5 to 3 as from 3 to current?
-        TouchCrosshair(20, GREEN);
-        if (swipedir(TouchStore[5].x, TouchStore[3].x) == swipedir(TouchStore[3].x, TouchStore[0].x))
-          TouchStore[0].X3Swipe = swipedir(TouchStore[5].x, TouchStore[3].x);
-        if (swipedir(TouchStore[5].y, TouchStore[3].y) == swipedir(TouchStore[3].y, TouchStore[0].y))
-          TouchStore[0].Y3Swipe = swipedir(TouchStore[3].y, TouchStore[3].y);
-      }
-
-      // Serial.printf("Touch delta:%ims consec(%i) xsent:[%i] ysent:[%i]\n",
-      //               InterSamplePeriod, consecutive, TouchStore[0].X3Swipe, TouchStore[0].Y3Swipe);
-
-      _Touch = TouchStore[0];
-
-      for (int i = 5; i >= 0; i--) {
-        TouchStore[i + 1] = TouchStore[i];
-        // Serial.printf(" replacing %i with %i\n", i + 1, i);
-      }
-
-    } else {  // not adequately consecutively timed!
-      TouchCrosshair(20, BLUE);
-      consecutive = 0; _Touch.consecutive=0;
-    }
-  }
+bool SwipedFarEnough(int sampleA, int sampleB, int range) {  // separated so I can debug!
+  int A = sampleB - sampleA;
+  return (abs(A) >= range);
 }
 
+bool SwipedFarEnough(TouchMemory sampleA, TouchMemory sampleB, int range) {
+  int H, V;
+  H = sampleB.x - sampleA.x;
+  V = sampleB.y - sampleA.y;
+  //Serial.printf(" SFE [ H(%i)  V(%i),  %i ]",abs(sampleB.x - sampleA.x),abs(sampleB.y - sampleA.y),range );
+  return ((abs(H) >= range) || abs(V) >= range);
+}
 
 void Use_Keyboard(char* DATA, int sizeof_data) {
   static unsigned long lastkeypressed, last_Displayed;
@@ -568,69 +528,101 @@ void Use_Keyboard(char* DATA, int sizeof_data) {
   if (!ts.isTouched && KeyPressUsed && (millis() > (250 + lastkeypressed))) { KeyPressUsed = false; }
 }
 
-bool Swipe(TouchMemory _touch, bool LR, int& variable, int varmin, int varmax, bool Cycle_Round, bool TopScreenOnly) {
-  static bool LRSwipeUpdateSent;
-  static unsigned long LRLastSwipeSent;
-  static bool UDSwipeUpdateSent;
-  static unsigned long UDLastSwipeSent;
-  int increment;
-  if (LR) {  // do not confuse LR and UD readings! this is just test stuff to help debug the ergonomics
-             // GFXBoxPrintf(h,v,width,height,textsize,bordersize,backgroundcol,textcol,bordercol, const char* fmt, ...) {  //complete object type suitable for holding the information needed by the macros va_start, va_copy, va_arg, and va_end.
-    GFXBoxPrintf(0, 100, 480, text_height, 1, 1, WHITE, BLACK, GREEN, "(%i)swipe:%i consec(%i) sent:[%i]", variable, _touch.X3Swipe, _touch.consecutive, LRSwipeUpdateSent);
+bool IncrementInRange(int _increment, int& Variable, int Varmin, int Varmax, bool Cycle_Round) {  // use wwith swipedir (-1.0,+1)
+  int _var;
+  //bool altered = true;
+  if (_increment == 0) { return false; }
+  _var = Variable + _increment;
+  if (Cycle_Round) {
+    if (_var >= Varmax + 1) { _var = Varmin; }
+    if (_var <= Varmin - 1) { _var = Varmax; }
+  } else {  // limit at max min
+    if (_var >= Varmax + 1) { _var = Varmax; }
+    if (_var <= Varmin - 1) { _var = Varmin; }
   }
-  // else {GFXBoxPrintf(0,100,480,text_height,1,1,RED,BLACK,GREEN, "(%i)swipe:%i consec(%i)sent:[%i]",variable,touch.X3Swipe,touch.consecutive,LRSwipeUpdateSent);}
-  // }
-  if (TopScreenOnly && (_touch.y >= 180)) { return false; }
+  Variable = _var;
+  return true;
+}
 
-  if (LR) {
-    if ((!ts.isTouched) && (millis() >= (LRLastSwipeSent + 500))) {
-      _touch.consecutive = 0;
-      LRSwipeUpdateSent = false;  // RESET (after delay) on finger lift for next swipe;
-      //LRLastSwipeSent = millis();  // but only after 500ms delay
-      return false;
-    }
-    // get 'direction +-1 or zero
-    if (ts.isTouched && (_touch.consecutive >= 5)) { increment = _touch.X3Swipe; }
-    if ((abs(increment) != 0) && (!LRSwipeUpdateSent)) {
-      if (Cycle_Round) {
-        variable = variable + increment;
-        if ((variable + increment) > varmax) { variable = varmin; }
-        if ((variable + increment) < varmin) { variable = varmax; }
-      } else {
-        if (((variable + increment) >= varmin) && ((variable + increment) <= varmax)) {
-          variable = variable + increment;
-        }
-      }
-      LRSwipeUpdateSent = true;
-      LRLastSwipeSent = millis();
-      return true;
-    }
-  } else {
-    if ((!ts.isTouched) && (millis() >= (UDLastSwipeSent + 500))) {
-      UDSwipeUpdateSent = false;  // RESET on finger lift for next swipe;
-      //UDLastSwipeSent = millis();  // but only after 500ms delay
-      return false;
-    }
-    // get 'direction +-1 or zero
-    if (ts.isTouched && (_touch.consecutive >= 5)) { increment = -_touch.Y3Swipe; }
-    if ((abs(increment) != 0) && (!UDSwipeUpdateSent)) {
-      if (Cycle_Round) {
-        variable = variable + increment;
-        if ((variable + increment) > varmax) { variable = varmin; }
-        if ((variable + increment) < varmin) { variable = varmax; }
-      } else {
-        if (((variable + increment) >= varmin) && ((variable + increment) <= varmax)) {
-          variable = variable + increment;
-        }
-      }
-      UDSwipeUpdateSent = true;
-      UDLastSwipeSent = millis();
-      return true;
-    }
+bool Swipe2(int& _LRvariable, int LRvarmin, int LRvarmax, bool LRCycle_Round,
+            int& _UDvariable, int UDvarmin, int UDvarmax, bool UDCycle_Round, bool TopScreenOnly) {
+  static TouchMemory Startingpoint, Touch_snapshot;
+  static bool SwipeFound, SwipeStart, MidSwipeSampled;
+  static unsigned long SwipeStartTime, SwipeFoundSent_atTime, timenow, SwipeCleared_atTime;
+  int Hincrement, Vincrement;
+#define minDist_Pixels 30
+#define minSwipe_TestTime_ms 150
+
+  //int Looking_at;  // horizontal/Vertical  0,1
+  bool returnvalue = false;
+  timenow = millis();
+
+  if (SwipeFound && (timenow >= (SwipeFoundSent_atTime + 150))) {  // limits repetitions
+    SwipeFound = false;
+    MidSwipeSampled = false;  // reset so can look for new swipe
+    SwipeStart = false;       //
+    Serial.printf("   Timed reset after 'Found'   flags:[%i] [%i]) \n", SwipeStart, SwipeFound);
     return false;
   }
-  return false;
+
+  if (SwipeStart && (timenow >= (SwipeStartTime + 1000))) {  // you have 3 sec from start to swipe. else resets start point.
+    SwipeStart = false;
+    MidSwipeSampled = false;
+    SwipeFound = false;  // no swipe within 1500 of start - reset.
+    Serial.printf("   RESET on Start timing flags [%i] [%i]) \n", SwipeStart, SwipeFound);
+    return false;
+  }
+
+  if (SwipeFound) { return false; }  // stop doing anything if we have Swipe sensed already (will wait for timed reset)
+  if (!ts.isTouched){ return false; }
+  //************* ts must be touched to get here....*****************
+  if (TopScreenOnly && (ts.points[0].y >= 180)) { return false; }
+  //Capture Snapshot of touch point: in case in changes during tests
+  //if (timenow <= SwipeCleared_atTime+ 200) {return false;}  // force a gap after a swipe clear. halts function!!
+  if ((timenow - Touch_snapshot.sampletime) <= 20) { return false; }  // 20ms min update
+
+  Touch_snapshot.sampletime = timenow;
+  Touch_snapshot.x = ts.points[0].x;
+  Touch_snapshot.y = ts.points[0].y;
+  Touch_snapshot.size = ts.points[0].size;
+
+  if (!SwipeStart) {  // capture First cross hair after reset ?
+    Startingpoint = Touch_snapshot;
+    // Serial.printf(" Starting at x%i y%i\n", Startingpoint.x, Startingpoint.y);
+    //TouchCrosshair(10, WHITE);
+    SwipeStart = true;
+    SwipeFound = false;
+    MidSwipeSampled = false;
+    SwipeStartTime = timenow;  // so we can reset on time if we do not 'swipe'
+    return false;              // we have the start point, so just return false.
+  }
+  //test
+  //Ignore this first movement- its just to ensure swiping properly. I had sensied this, but its not consistent!
+  if (SwipeStart && !MidSwipeSampled && SwipedFarEnough(Startingpoint, Touch_snapshot, minDist_Pixels)) {
+    Startingpoint = Touch_snapshot;
+    MidSwipeSampled = true;
+    //TouchCrosshair(20, BLUE);
+    return false;
+  }
+  if (SwipeStart && MidSwipeSampled && SwipedFarEnough(Startingpoint, Touch_snapshot, (minDist_Pixels))) {
+    Hincrement = swipedir(Startingpoint.x, Touch_snapshot.x, minDist_Pixels);
+    Vincrement = swipedir(Touch_snapshot.y, Startingpoint.y, minDist_Pixels);
+    // only return true if we increment (change) either of the selected attributes
+    // Tried evaluating seperately at mid point.. but values were NOT consistent Do H and V separately as one may not be consistent! 
+   // Serial.printf(" swipe evaluate  start-mid(H%i  V%i)   mid-now(H%i V%i) ",Hincrement[0],Vincrement[0],Hincrement[1],Vincrement[1]);
+   if (IncrementInRange(Hincrement, _LRvariable, LRvarmin, LRvarmax, LRCycle_Round)) {returnvalue =true;}
+   if (IncrementInRange(Vincrement, _UDvariable, UDvarmin, UDvarmax, UDCycle_Round)) {returnvalue = true;}
+  
+    SwipeFoundSent_atTime = timenow;
+    SwipeStart = false;
+    MidSwipeSampled = false;
+    SwipeFound = true;  // we have gone far enough to test swipe, so start again..
+   // if (returnvalue){TouchCrosshair(20, GREEN);} else {TouchCrosshair(20, RED);}
+
+  }  // SWIPEStart recorded, now looking for swipe > min distance (swipeFound)//
+  return returnvalue;
 }
+
 
 void TouchValueShow(int offset, bool debug) {  // offset display down in pixels
   //ts.read();
