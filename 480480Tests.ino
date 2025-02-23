@@ -35,7 +35,9 @@ struct MySettings {  //key,default page,ssid,PW,Displaypage, UDP,Mode,serial,Esp
   bool Serial_on;
   bool ESP_NOW_ON;
 };
-MySettings Default_Settings = { 1, -100, "N2K0183-proto", "12345678", 2002, false, true, true };
+// use page -100 for any swipe testing 
+// change key (first parameter) to set defaults
+MySettings Default_Settings = { 2, 0, "N2K0183-proto", "12345678", 2002, false, true, true };
 MySettings Saved_Settings;
 MySettings Current_Settings;
 struct Displaysettings {
